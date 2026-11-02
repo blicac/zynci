@@ -58,10 +58,14 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
             <div class="flex items-center gap-2.5 min-w-0">
               <a
                 routerLink="/"
-                class="h-8 w-8 shrink-0 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shadow-xs hover:bg-blue-500 transition-colors"
+                class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center hover:opacity-85 transition-opacity"
                 title="Back to Create Event"
               >
-                Z
+                <img
+                  src="/icon.png"
+                  alt="Zynci"
+                  class="h-8 w-8 rounded-lg object-contain"
+                />
               </a>
               <div class="min-w-0">
                 @if (eventData(); as ev) {

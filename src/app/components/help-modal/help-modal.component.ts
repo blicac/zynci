@@ -20,9 +20,11 @@ import { copyTextToClipboard } from '../../utils/scheduler.utils';
         <!-- Header -->
         <div class="bg-white border-b border-slate-100 px-5 py-3.5 flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <span class="h-6 w-6 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-xs">
-              ?
-            </span>
+            <img
+              src="/icon.png"
+              alt="Zynci"
+              class="h-6 w-6 rounded-md object-contain shrink-0"
+            />
             <h2 class="text-sm font-extrabold text-slate-900">Help & About Zynci</h2>
           </div>
           <button

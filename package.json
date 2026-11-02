@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "node local-api-server.mjs & ng serve",
-    "build": "ng build",
+    "build": "node scripts/set-env.mjs && ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },

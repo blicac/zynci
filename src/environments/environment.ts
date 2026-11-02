@@ -3,6 +3,6 @@ export const environment = {
   // Configure your Supabase project URL and anon/publishable key below.
   // When supabaseAnonKey is empty, the app seamlessly uses a persistent local demo store (seeded with sample data) so it can be tested immediately.
   supabaseUrl: 'https://jznddvoxbsrlnvbihyfy.supabase.co',
-  supabaseAnonKey: ''
+  supabaseAnonKey: 'sb_publishable_ZxM_8ErtL_bNCAauNe2AKw__quBDZcJ'
 };
 

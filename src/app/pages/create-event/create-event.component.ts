@@ -21,9 +21,11 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
       <header class="border-b border-slate-200/80 bg-white text-slate-900 shadow-2xs">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div class="flex items-center gap-2.5">
-            <div class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-base shadow-xs">
-              Z
-            </div>
+            <img
+              src="/icon.png"
+              alt="Zynci"
+              class="h-8 w-8 rounded-lg object-contain shrink-0"
+            />
             <div>
               <span class="font-extrabold text-slate-900 tracking-tight text-base">Zynci</span>
               <span class="hidden sm:inline-block ml-2 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
@@ -68,6 +70,19 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
 
           <div class="rounded-3xl bg-white border border-slate-200/80 shadow-md p-6 sm:p-8">
             <form (ngSubmit)="onSubmit()" class="space-y-5">
+              <!-- Anti-Bot Honeypot (Hidden from humans, filled by automated form bots) -->
+              <div class="hidden" aria-hidden="true">
+                <label for="websiteUrl">Website</label>
+                <input
+                  id="websiteUrl"
+                  type="text"
+                  name="websiteUrl"
+                  tabindex="-1"
+                  autocomplete="off"
+                  [(ngModel)]="honeypotWebsite"
+                />
+              </div>
+
               <!-- Event Title -->
               <div>
                 <label for="title" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
@@ -364,7 +379,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
       <!-- Footer -->
       <footer class="py-4 text-center text-xs text-slate-400 border-t border-slate-200/80 bg-white">
         <div class="max-w-4xl mx-auto px-4 flex items-center justify-center">
-          <span>Zynci — Minimalist Group Scheduler · Created by Bruna Freitas</span>
+          <span>Zynci — Minimalist Group Scheduler</span>
         </div>
       </footer>
 
@@ -384,6 +399,7 @@ export class CreateEventComponent implements OnInit {
   startDate = this.defaultRange.startDate;
   endDate = this.defaultRange.endDate;
   sharedPassword = '';
+  honeypotWebsite = '';
   showPassword = signal<boolean>(false);
   showHelpModal = signal<boolean>(false);
   loading = signal<boolean>(false);
@@ -497,6 +513,18 @@ export class CreateEventComponent implements OnInit {
   async onSubmit(): Promise<void> {
     this.errorMessage.set('');
 
+    // Reject automated bots that fill hidden honeypot fields
+    if (this.honeypotWebsite.trim().length > 0) {
+      return;
+    }
+
+    // Simple 15-second cooldown per browser to prevent rapid poll spam
+    const lastCreatedAt = Number(localStorage.getItem('zynci_last_poll_created_ts') || '0');
+    if (Date.now() - lastCreatedAt < 15000) {
+      this.errorMessage.set('Please wait a few seconds before creating another poll.');
+      return;
+    }
+
     if (!this.title.trim()) {
       this.errorMessage.set('Please enter a poll title.');
       return;
@@ -525,6 +553,7 @@ export class CreateEventComponent implements OnInit {
         end_date: this.endDate,
         raw_password: this.sharedPassword,
       });
+      localStorage.setItem('zynci_last_poll_created_ts', String(Date.now()));
 
       const shareToken = encodeShareToken(created);
       await this.router.navigate(['/event', created.id], {

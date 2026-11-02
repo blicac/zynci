@@ -129,30 +129,48 @@ function writeDb(db) {
 
 function mergeDb(current, incoming) {
   const cleanIncoming = sanitizeDb(incoming);
+  const deletedEventIds = new Set(
+    Array.isArray(incoming?.deletedEventIds) ? incoming.deletedEventIds.map(String) : []
+  );
+  const deletedParticipantIds = new Set(
+    Array.isArray(incoming?.deletedParticipantIds)
+      ? incoming.deletedParticipantIds.map(String)
+      : []
+  );
+
   const eventsMap = new Map();
-  for (const e of current.events) eventsMap.set(e.id, e);
+  for (const e of current.events) {
+    if (!deletedEventIds.has(e.id)) {
+      eventsMap.set(e.id, e);
+    }
+  }
   for (const e of cleanIncoming.events) {
-    if (!eventsMap.has(e.id)) {
+    if (!deletedEventIds.has(e.id)) {
       eventsMap.set(e.id, e);
     }
   }
 
   const participantsMap = new Map();
-  for (const p of current.participants) participantsMap.set(p.id, p);
+  for (const p of current.participants) {
+    if (!deletedEventIds.has(p.event_id) && !deletedParticipantIds.has(p.id)) {
+      participantsMap.set(p.id, p);
+    }
+  }
   for (const p of cleanIncoming.participants) {
-    if (!participantsMap.has(p.id)) {
+    if (!deletedEventIds.has(p.event_id) && !deletedParticipantIds.has(p.id)) {
       participantsMap.set(p.id, p);
     }
   }
 
   const availabilitiesMap = new Map();
   for (const a of current.availabilities) {
-    availabilitiesMap.set(`${a.participant_id}_${a.date}_${a.time_slot}`, a);
+    if (!deletedEventIds.has(a.event_id) && !deletedParticipantIds.has(a.participant_id)) {
+      availabilitiesMap.set(`${a.participant_id}_${a.date}_${a.time_slot}`, a);
+    }
   }
   for (const a of cleanIncoming.availabilities) {
-    const key = `${a.participant_id}_${a.date}_${a.time_slot}`;
-    if (!availabilitiesMap.has(key)) {
-      availabilitiesMap.set(key, a);
+    if (!deletedEventIds.has(a.event_id) && !deletedParticipantIds.has(a.participant_id)) {
+      availabilitiesMap.set(`${a.participant_id}_${a.date}_${a.time_slot}`, a);
     }
   }
 
@@ -212,13 +230,8 @@ const server = http.createServer((req, res) => {
       if (aborted) return;
       try {
         const payload = JSON.parse(body || '{}');
-        let result;
-        if (req.url === '/api/db/merge') {
-          const current = readDb();
-          result = writeDb(mergeDb(current, payload));
-        } else {
-          result = writeDb(payload);
-        }
+        const current = readDb();
+        const result = writeDb(mergeDb(current, payload));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch {

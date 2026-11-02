@@ -55,11 +55,18 @@ export class SupabaseService {
   }
 
   private getLocalApiBaseUrl(): string {
-    const host =
-      typeof window !== 'undefined' && window.location?.hostname
-        ? window.location.hostname
-        : '127.0.0.1';
-    return `http://${host}:4201/api/db`;
+    if (typeof window !== 'undefined' && window.location) {
+      const { hostname, port } = window.location;
+      if (
+        (hostname === 'localhost' || hostname === '127.0.0.1') &&
+        port === '4200'
+      ) {
+        return `http://${hostname}:4201/api/db`;
+      }
+      // On Vercel or any deployed domain, use same-origin serverless API
+      return '/api/db';
+    }
+    return 'http://127.0.0.1:4201/api/db';
   }
 
   // ============================================================================
@@ -253,7 +260,7 @@ export class SupabaseService {
       db.events = db.events.filter((e) => !expiredIds.has(e.id));
       db.participants = db.participants.filter((p) => !expiredIds.has(p.event_id));
       db.availabilities = db.availabilities.filter((a) => !expiredIds.has(a.event_id));
-      await this.saveSyncedDb(db);
+      await this.saveSyncedDb(db, { deletedEventIds: Array.from(expiredIds) });
 
       const adminMap = this.getAdminEventsMap();
       for (const id of expiredIds) {
@@ -401,7 +408,7 @@ export class SupabaseService {
       db.events = db.events.filter((e) => e.id !== eventId);
       db.participants = db.participants.filter((p) => p.event_id !== eventId);
       db.availabilities = db.availabilities.filter((a) => a.event_id !== eventId);
-      await this.saveSyncedDb(db);
+      await this.saveSyncedDb(db, { deletedEventIds: [eventId] });
     }
     const adminMap = this.getAdminEventsMap();
     delete adminMap[eventId];
@@ -490,7 +497,31 @@ export class SupabaseService {
         .maybeSingle();
 
       if (error) throw new Error(error.message);
-      const ev = (data as SchedulerEvent | null) ?? sharedFallback ?? null;
+      let ev = (data as SchedulerEvent | null) ?? null;
+
+      if (
+        !ev &&
+        sharedFallback &&
+        sharedFallback.id === eventId &&
+        sharedFallback.end_date >= todayStr
+      ) {
+        const { data: seeded } = await this.supabase
+          .from('events')
+          .upsert(
+            {
+              id: sharedFallback.id,
+              title: sharedFallback.title,
+              start_date: sharedFallback.start_date,
+              end_date: sharedFallback.end_date,
+              password_hash: sharedFallback.password_hash,
+            },
+            { onConflict: 'id' }
+          )
+          .select()
+          .maybeSingle();
+        ev = (seeded as SchedulerEvent | null) ?? sharedFallback;
+      }
+
       if (ev && ev.end_date < todayStr) {
         await this.deleteEvent(ev.id);
         return null;
@@ -807,7 +838,7 @@ export class SupabaseService {
       db.availabilities = db.availabilities.filter(
         (a) => !(a.participant_id === participantId && a.event_id === eventId)
       );
-      await this.saveSyncedDb(db);
+      await this.saveSyncedDb(db, { deletedParticipantIds: [participantId] });
     }
 
     const owned = this.getOwnedParticipant(eventId);
@@ -817,7 +848,7 @@ export class SupabaseService {
   }
 
   // ============================================================================
-  // Shared Local Server + LocalStorage Sync Engine
+  // Shared Server (/api/db on Vercel or localhost:4201) + LocalStorage Sync
   // ============================================================================
 
   private purgeLegacyAndExpiredFromLocal(): void {
@@ -845,54 +876,65 @@ export class SupabaseService {
     const apiUrl = this.getLocalApiBaseUrl();
 
     try {
-      const alreadyMerged = localStorage.getItem(MERGED_TO_SERVER_KEY) === 'true';
-      if (
-        !alreadyMerged &&
-        (localDb.events.length > 0 ||
-          localDb.participants.length > 0 ||
-          localDb.availabilities.length > 0)
-      ) {
-        const mergeRes = await fetch(`${apiUrl}/merge`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(localDb),
-        });
-        if (mergeRes.ok) {
-          const merged = (await mergeRes.json()) as LocalStoreSchema;
-          localStorage.setItem(MERGED_TO_SERVER_KEY, 'true');
-          this.writeLocalDb(merged);
-          return merged;
-        }
-      }
-
-      const res = await fetch(apiUrl, { method: 'GET' });
+      const res = await fetch(apiUrl, { method: 'GET', cache: 'no-store' });
       if (res.ok) {
         const remoteDb = (await res.json()) as LocalStoreSchema;
+
+        // Check if this browser has any local events/participants not yet on the server
+        const remoteEventIds = new Set((remoteDb.events ?? []).map((e) => e.id));
+        const remoteParticipantIds = new Set(
+          (remoteDb.participants ?? []).map((p) => p.id)
+        );
+        const hasUnsyncedLocal =
+          localDb.events.some((e) => !remoteEventIds.has(e.id)) ||
+          localDb.participants.some((p) => !remoteParticipantIds.has(p.id));
+
+        if (hasUnsyncedLocal) {
+          const mergeRes = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(localDb),
+          });
+          if (mergeRes.ok) {
+            const merged = (await mergeRes.json()) as LocalStoreSchema;
+            localStorage.setItem(MERGED_TO_SERVER_KEY, 'true');
+            this.writeLocalDb(merged);
+            return merged;
+          }
+        }
+
         localStorage.setItem(MERGED_TO_SERVER_KEY, 'true');
         this.writeLocalDb(remoteDb);
         return remoteDb;
       }
     } catch {
-      // Fallback to localStorage if local sync server is unreachable
+      // Fallback to localStorage if sync server is unreachable
     }
 
     return localDb;
   }
 
-  private async saveSyncedDb(db: LocalStoreSchema): Promise<void> {
+  private async saveSyncedDb(
+    db: LocalStoreSchema,
+    options?: { deletedEventIds?: string[]; deletedParticipantIds?: string[] }
+  ): Promise<void> {
     this.writeLocalDb(db);
     try {
       const res = await fetch(this.getLocalApiBaseUrl(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(db),
+        body: JSON.stringify({
+          ...db,
+          deletedEventIds: options?.deletedEventIds,
+          deletedParticipantIds: options?.deletedParticipantIds,
+        }),
       });
       if (res.ok) {
         const saved = (await res.json()) as LocalStoreSchema;
         this.writeLocalDb(saved);
       }
     } catch {
-      // Fallback to localStorage if local sync server is unreachable
+      // Fallback to localStorage if sync server is unreachable
     }
   }
 
