@@ -49,30 +49,30 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
     HelpModalComponent,
   ],
   template: `
-    <div class="min-h-screen bg-white flex flex-col">
-      <!-- Top Navigation Bar (Black, Mobile-Responsive) -->
-      <header class="bg-slate-900 text-white border-b border-slate-800">
+    <div class="min-h-screen bg-slate-50 flex flex-col">
+      <!-- Top Navigation Bar (Clean Elevated Surface, Mobile-Responsive) -->
+      <header class="bg-white text-slate-900 border-b border-slate-200/80 shadow-2xs">
         <div class="max-w-5xl mx-auto px-3 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <!-- Title & Logo Row -->
           <div class="flex items-center justify-between gap-2 min-w-0">
             <div class="flex items-center gap-2.5 min-w-0">
               <a
                 routerLink="/"
-                class="h-8 w-8 shrink-0 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-sm shadow-xs hover:bg-emerald-500 transition-colors"
+                class="h-8 w-8 shrink-0 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shadow-xs hover:bg-blue-500 transition-colors"
                 title="Back to Create Event"
               >
                 Z
               </a>
               <div class="min-w-0">
                 @if (eventData(); as ev) {
-                  <h1 class="truncate text-sm sm:text-base font-extrabold text-white">
+                  <h1 class="truncate text-sm sm:text-base font-extrabold text-slate-900">
                     {{ ev.title }}
                   </h1>
-                  <p class="text-[11px] font-medium text-slate-400 truncate">
+                  <p class="text-[11px] font-medium text-slate-500 truncate">
                     {{ ev.start_date }} to {{ ev.end_date }} · {{ days().length }} days
                   </p>
                 } @else {
-                  <span class="text-sm font-bold text-white">Zynci Event</span>
+                  <span class="text-sm font-bold text-slate-900">Zynci Event</span>
                 }
               </div>
             </div>
@@ -81,7 +81,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
             <button
               type="button"
               (click)="showHelpModal.set(true)"
-              class="sm:hidden shrink-0 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+              class="sm:hidden shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
               title="Help & About"
             >
               ?
@@ -96,10 +96,10 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
                 (click)="toggleAdminSettings()"
                 [class]="
                   showAdminSettings()
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                 "
-                class="rounded-xl px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer"
+                class="rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer"
                 title="Edit poll dates, title, password, or participants"
               >
                 {{ showAdminSettings() ? 'Close Edit' : 'Edit Poll' }}
@@ -111,10 +111,10 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
               (click)="shareOrCopyLink()"
               [class]="
                 linkCopied()
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
               "
-              class="rounded-xl px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+              class="rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
@@ -125,7 +125,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
             <a
               routerLink="/"
               fragment="my-polls"
-              class="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors"
+              class="rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors"
             >
               My Polls
             </a>
@@ -133,7 +133,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
             <button
               type="button"
               (click)="showHelpModal.set(true)"
-              class="hidden sm:inline-block rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+              class="hidden sm:inline-block rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
               title="Help & About"
             >
               ?
@@ -144,8 +144,8 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
 
       <!-- Expandable Edit Poll Panel (Unified White Scheme: Poll Fields + Participants Below) -->
       @if (showAdminSettings() && isAdmin() && eventData()) {
-        <div class="bg-white text-slate-900 border-b border-slate-200 px-3 sm:px-6 py-4">
-          <div class="max-w-5xl mx-auto rounded-2xl bg-white border border-slate-200 p-4 space-y-4 shadow-2xs">
+        <div class="bg-slate-50 text-slate-900 border-b border-slate-200/80 px-3 sm:px-6 py-4">
+          <div class="max-w-5xl mx-auto rounded-2xl bg-white border border-slate-200/80 p-4 space-y-4 shadow-sm">
             <form (ngSubmit)="saveAdminPollSettings()" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
               <!-- Title -->
               <div class="sm:col-span-2">
@@ -157,7 +157,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
                   name="adminTitle"
                   [(ngModel)]="adminTitle"
                   required
-                  class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
                 />
               </div>
 
@@ -171,7 +171,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
                   name="adminStartDate"
                   [(ngModel)]="adminStartDate"
                   required
-                  class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
                 />
               </div>
 
@@ -186,7 +186,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
                   [(ngModel)]="adminEndDate"
                   [min]="adminStartDate"
                   required
-                  class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
                 />
               </div>
 
@@ -200,14 +200,14 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
                   name="adminNewPassword"
                   [(ngModel)]="adminNewPassword"
                   placeholder="Type new password to change it..."
-                  class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
                 />
               </div>
 
               <div class="sm:col-span-2 flex items-center justify-end gap-2">
                 <button
                   type="submit"
-                  class="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 text-xs shadow-xs cursor-pointer"
+                  class="min-h-[40px] rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2 text-xs shadow-xs cursor-pointer"
                 >
                   Save Poll Changes
                 </button>
@@ -224,12 +224,12 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
               } @else {
                 <div class="flex flex-wrap items-center gap-1.5">
                   @for (p of participants(); track p.id) {
-                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
                       <span>{{ p.name }}</span>
                       <button
                         type="button"
                         (click)="onDeleteParticipant(p)"
-                        class="rounded-sm hover:bg-orange-200 hover:text-orange-900 text-slate-400 px-1 text-[11px] font-bold cursor-pointer"
+                        class="rounded-full hover:bg-slate-200 hover:text-slate-900 text-slate-400 px-1 text-[11px] font-bold cursor-pointer"
                         [title]="'Remove ' + p.name"
                       >
                         ✕
@@ -247,7 +247,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
       @if (loading()) {
         <div class="flex-1 flex items-center justify-center p-8">
           <div class="text-center space-y-2">
-            <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-r-transparent"></div>
+            <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-r-transparent"></div>
             <p class="text-sm font-semibold text-slate-600">Loading event schedule...</p>
           </div>
         </div>
@@ -261,7 +261,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
             </p>
             <a
               routerLink="/"
-              class="mt-5 inline-block rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-2.5 text-sm transition-colors"
+              class="mt-5 inline-flex items-center justify-center min-h-[44px] rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 text-sm transition-colors"
             >
               Create a New Event
             </a>
@@ -272,8 +272,8 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
         <!-- PASSWORD GATE VIEW                                               -->
         <!-- ================================================================ -->
         <div class="flex-1 flex items-center justify-center p-4">
-          <div class="w-full max-w-md rounded-3xl bg-white border border-slate-200/90 shadow-xl p-6 sm:p-8">
-            <div class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-bold text-amber-800">
+          <div class="w-full max-w-md rounded-3xl bg-white border border-slate-200/80 shadow-md p-6 sm:p-8">
+            <div class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-bold text-blue-700">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
               </svg>
@@ -300,7 +300,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
                   required
                   autofocus
                   placeholder="Enter shared password..."
-                  class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
@@ -312,7 +312,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
 
               <button
                 type="submit"
-                class="w-full rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-6 shadow-md transition-all cursor-pointer text-sm"
+                class="w-full min-h-[44px] rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 shadow-sm transition-all cursor-pointer text-sm"
               >
                 Unlock Event Schedule
               </button>
@@ -326,9 +326,9 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
 
         @if (toastMessage()) {
           <div class="max-w-5xl mx-auto w-full px-3 sm:px-6 mt-2.5">
-            <div class="rounded-xl bg-emerald-600 text-white px-4 py-2 text-xs sm:text-sm font-bold shadow-md flex items-center justify-between">
+            <div class="rounded-full bg-blue-600 text-white px-4 py-2 text-xs sm:text-sm font-bold shadow-sm flex items-center justify-between">
               <span>{{ toastMessage() }}</span>
-              <button type="button" (click)="toastMessage.set('')" class="text-emerald-100 hover:text-white font-extrabold ml-4 cursor-pointer">✕</button>
+              <button type="button" (click)="toastMessage.set('')" class="text-blue-100 hover:text-white font-extrabold ml-4 cursor-pointer">✕</button>
             </div>
           </div>
         }

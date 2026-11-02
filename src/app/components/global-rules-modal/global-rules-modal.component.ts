@@ -18,12 +18,12 @@ interface IndividualDayColumn {
   imports: [CommonModule],
   template: `
     <div
-      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-xs p-0 sm:p-4 animate-fade-in select-none"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-xs p-0 sm:p-4 animate-fade-in select-none"
       role="dialog"
       aria-modal="true"
     >
       <div
-        class="w-full max-w-md rounded-t-3xl sm:rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden"
+        class="w-full max-w-md rounded-t-3xl sm:rounded-2xl bg-white shadow-xl border border-slate-200/80 overflow-hidden"
       >
         <!-- Minimal Header -->
         <div class="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
@@ -32,7 +32,7 @@ interface IndividualDayColumn {
               Usual Availability · {{ participantName }}
             </h2>
             <p class="text-[11px] text-slate-400">
-              Tap slots to flip <span class="text-emerald-600 font-bold">Free</span> or <span class="text-orange-600 font-semibold">Busy</span>
+              Tap slots to flip <span class="text-blue-600 font-bold">Free</span> or <span class="text-slate-500 font-semibold">Busy</span>
             </p>
           </div>
 
@@ -40,14 +40,14 @@ interface IndividualDayColumn {
             <button
               type="button"
               (click)="toggleExpandDays()"
-              class="rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 transition-colors cursor-pointer"
+              class="rounded-full bg-slate-100 hover:bg-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 transition-colors cursor-pointer"
             >
               {{ condenseWeekdays() ? 'All 7 Days' : 'Condense Mon–Fri' }}
             </button>
             <button
               type="button"
               (click)="skipRules.emit()"
-              class="rounded-lg p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+              class="rounded-full p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
               title="Close"
             >
               ✕
@@ -64,7 +64,7 @@ interface IndividualDayColumn {
               <button
                 type="button"
                 (click)="toggleColumnGroup([1, 2, 3, 4, 5])"
-                class="rounded-lg bg-slate-100 hover:bg-slate-200/80 py-1.5 px-2 text-xs font-extrabold text-slate-800 cursor-pointer transition-colors"
+                class="rounded-md bg-slate-100 hover:bg-slate-200/80 py-1.5 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-700 cursor-pointer transition-colors"
                 title="Tap to flip all Weekdays"
               >
                 Mon–Fri
@@ -72,7 +72,7 @@ interface IndividualDayColumn {
               <button
                 type="button"
                 (click)="toggleColumnGroup([6])"
-                class="rounded-lg bg-amber-50 hover:bg-amber-100/80 py-1.5 px-2 text-xs font-extrabold text-amber-900 cursor-pointer transition-colors"
+                class="rounded-md bg-slate-100 hover:bg-slate-200/80 py-1.5 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-700 cursor-pointer transition-colors"
                 title="Tap to flip Saturday"
               >
                 Sat
@@ -80,7 +80,7 @@ interface IndividualDayColumn {
               <button
                 type="button"
                 (click)="toggleColumnGroup([0])"
-                class="rounded-lg bg-amber-50 hover:bg-amber-100/80 py-1.5 px-2 text-xs font-extrabold text-amber-900 cursor-pointer transition-colors"
+                class="rounded-md bg-slate-100 hover:bg-slate-200/80 py-1.5 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-700 cursor-pointer transition-colors"
                 title="Tap to flip Sunday"
               >
                 Sun
@@ -91,9 +91,9 @@ interface IndividualDayColumn {
                 <button
                   type="button"
                   (click)="toggleSlotAcrossAllDays(slot.key)"
-                  class="flex items-center gap-1.5 text-left py-1 px-1 rounded-lg hover:bg-slate-50 cursor-pointer"
+                  class="flex items-center gap-1.5 text-left py-1 px-1 rounded-md hover:bg-slate-50 cursor-pointer"
                 >
-                  <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-slate-900 text-white text-xs font-extrabold">
+                  <span class="inline-flex h-6 w-6 items-center justify-center rounded-sm bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold uppercase tracking-wider">
                     {{ slot.shortLabel }}
                   </span>
                   <span class="text-xs font-bold text-slate-600">{{ slot.fullLabel }}</span>
@@ -105,10 +105,10 @@ interface IndividualDayColumn {
                   (click)="toggleGroupSlot([1, 2, 3, 4, 5], slot.key)"
                   [class]="
                     isGroupSlotAvailable([1, 2, 3, 4, 5], slot.key)
-                      ? 'bg-emerald-500 text-white border-emerald-600'
-                      : 'bg-orange-100 text-orange-800 border-orange-200'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
                   "
-                  class="h-10 rounded-xl border font-extrabold text-xs transition-all active:scale-95 cursor-pointer"
+                  class="h-10 rounded-md border font-extrabold text-xs transition-all active:scale-95 cursor-pointer"
                 >
                   {{ isGroupSlotAvailable([1, 2, 3, 4, 5], slot.key) ? 'Free' : 'Busy' }}
                 </button>
@@ -119,10 +119,10 @@ interface IndividualDayColumn {
                   (click)="toggleGroupSlot([6], slot.key)"
                   [class]="
                     isGroupSlotAvailable([6], slot.key)
-                      ? 'bg-emerald-500 text-white border-emerald-600'
-                      : 'bg-orange-100 text-orange-800 border-orange-200'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
                   "
-                  class="h-10 rounded-xl border font-extrabold text-xs transition-all active:scale-95 cursor-pointer"
+                  class="h-10 rounded-md border font-extrabold text-xs transition-all active:scale-95 cursor-pointer"
                 >
                   {{ isGroupSlotAvailable([6], slot.key) ? 'Free' : 'Busy' }}
                 </button>
@@ -133,10 +133,10 @@ interface IndividualDayColumn {
                   (click)="toggleGroupSlot([0], slot.key)"
                   [class]="
                     isGroupSlotAvailable([0], slot.key)
-                      ? 'bg-emerald-500 text-white border-emerald-600'
-                      : 'bg-orange-100 text-orange-800 border-orange-200'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
                   "
-                  class="h-10 rounded-xl border font-extrabold text-xs transition-all active:scale-95 cursor-pointer"
+                  class="h-10 rounded-md border font-extrabold text-xs transition-all active:scale-95 cursor-pointer"
                 >
                   {{ isGroupSlotAvailable([0], slot.key) ? 'Free' : 'Busy' }}
                 </button>
@@ -150,8 +150,7 @@ interface IndividualDayColumn {
                 <button
                   type="button"
                   (click)="toggleColumnGroup([col.dow])"
-                  [class]="col.isWeekend ? 'bg-amber-50 text-amber-900' : 'bg-slate-100 text-slate-700'"
-                  class="rounded-md py-1 text-[11px] font-extrabold cursor-pointer hover:opacity-80"
+                  class="rounded-sm bg-slate-100 text-slate-700 py-1 text-[11px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-200"
                 >
                   {{ col.label }}
                 </button>
@@ -161,7 +160,7 @@ interface IndividualDayColumn {
                 <button
                   type="button"
                   (click)="toggleSlotAcrossAllDays(slot.key)"
-                  class="flex items-center justify-center h-9 rounded-md bg-slate-900 text-white text-xs font-extrabold cursor-pointer"
+                  class="flex items-center justify-center h-9 rounded-sm bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold uppercase tracking-wider cursor-pointer"
                   [title]="slot.fullLabel"
                 >
                   {{ slot.shortLabel }}
@@ -173,10 +172,10 @@ interface IndividualDayColumn {
                     (click)="toggleGroupSlot([col.dow], slot.key)"
                     [class]="
                       isGroupSlotAvailable([col.dow], slot.key)
-                        ? 'bg-emerald-500 text-white border-emerald-600'
-                        : 'bg-orange-100 text-orange-800 border-orange-200'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-slate-100 text-slate-400 border-slate-200'
                     "
-                    class="h-9 rounded-lg border font-extrabold text-xs transition-all active:scale-95 cursor-pointer"
+                    class="h-9 rounded-sm border font-extrabold text-xs transition-all active:scale-95 cursor-pointer"
                   >
                     {{ slot.shortLabel }}
                   </button>
@@ -185,20 +184,20 @@ interface IndividualDayColumn {
             </div>
           }
 
-          <!-- Quick All / None + Apply CTA -->
+          <!-- Quick All / None + Apply CTA (44px Tactile Rounded-Full Button) -->
           <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
             <div class="flex items-center gap-1.5">
               <button
                 type="button"
                 (click)="setAll(true)"
-                class="rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 cursor-pointer"
+                class="rounded-full bg-slate-100 hover:bg-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-700 cursor-pointer"
               >
                 All Free
               </button>
               <button
                 type="button"
                 (click)="setAll(false)"
-                class="rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-500 cursor-pointer"
+                class="rounded-full bg-slate-100 hover:bg-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-500 cursor-pointer"
               >
                 All busy
               </button>
@@ -207,7 +206,7 @@ interface IndividualDayColumn {
             <button
               type="button"
               (click)="onApply()"
-              class="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-5 text-xs sm:text-sm shadow-sm transition-all cursor-pointer"
+              class="min-h-[44px] rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold px-5 py-2.5 text-xs sm:text-sm shadow-sm shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center"
             >
               Apply to Calendar
             </button>
@@ -233,10 +232,8 @@ export class GlobalRulesModalComponent {
     { dow: 0, label: 'Su', isWeekend: true },
   ];
 
-  // Condense Mon-Fri by default since most people have similar weekday availability
   condenseWeekdays = signal<boolean>(true);
 
-  // Default: Weekdays Evening Free, Weekends M/A/E Free
   byDay = signal<Record<number, Record<TimeSlot, boolean>>>({
     1: { morning: false, afternoon: false, evening: true },
     2: { morning: false, afternoon: false, evening: true },
