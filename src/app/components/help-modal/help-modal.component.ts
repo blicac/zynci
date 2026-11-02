@@ -68,7 +68,7 @@ import { copyTextToClipboard } from '../../utils/scheduler.utils';
             </p>
           </div>
 
-          <!-- Anti-Spam Contact Section -->
+
           <div class="pt-3 border-t border-slate-100 space-y-2">
             <h3 class="text-[11px] font-bold uppercase tracking-wider text-slate-900">
               Report a Problem
@@ -84,7 +84,7 @@ import { copyTextToClipboard } from '../../utils/scheduler.utils';
                 class="rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3.5 py-2 text-xs font-bold text-slate-800 transition-colors cursor-pointer inline-flex items-center gap-1.5"
               >
                 <span>Click to reveal contact email</span>
-                <span class="text-[10px] text-slate-400">(anti-spam protected)</span>
+
               </button>
             } @else {
               <div class="rounded-xl bg-emerald-50/70 border border-emerald-200 p-3 flex flex-wrap items-center justify-between gap-2">
@@ -98,13 +98,6 @@ import { copyTextToClipboard } from '../../utils/scheduler.utils';
                     class="rounded-lg bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 cursor-pointer"
                   >
                     {{ copied() ? 'Copied!' : 'Copy Email' }}
-                  </button>
-                  <button
-                    type="button"
-                    (click)="openMailClient()"
-                    class="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white cursor-pointer"
-                  >
-                    Email Me
                   </button>
                 </div>
               </div>
@@ -122,9 +115,9 @@ export class HelpModalComponent {
   copied = signal<boolean>(false);
 
   // Stored as split character code arrays so bots/scrapers scanning HTML or JS bundles cannot regex-match an email address
-  private readonly uCodes = [98, 114, 117, 110, 97]; // "bruna"
-  private readonly dCodes = [109, 101]; // "me"
-  private readonly tCodes = [99, 111, 109]; // "com"
+  private readonly uCodes = [104, 101, 108, 108, 111];
+  private readonly dCodes = [98, 102, 114, 101, 105, 116, 97, 115];
+  private readonly tCodes = [100, 101];
 
   private decodePart(codes: number[]): string {
     return String.fromCharCode(...codes);
@@ -154,11 +147,6 @@ export class HelpModalComponent {
       this.copied.set(true);
       setTimeout(() => this.copied.set(false), 2500);
     }
-  }
-
-  openMailClient(): void {
-    const addr = this.assembleAddress();
-    window.location.href = `mailto:${addr}?subject=${encodeURIComponent('Zynci Feedback / Bug Report')}`;
   }
 }
 
