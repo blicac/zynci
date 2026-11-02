@@ -34,6 +34,7 @@ import {
 import { GlobalRulesModalComponent } from '../../components/global-rules-modal/global-rules-modal.component';
 import { EditAvailabilityComponent } from '../../components/edit-availability/edit-availability.component';
 import { HeatmapViewComponent } from '../../components/heatmap-view/heatmap-view.component';
+import { HelpModalComponent } from '../../components/help-modal/help-modal.component';
 
 @Component({
   selector: 'app-event-view',
@@ -45,6 +46,7 @@ import { HeatmapViewComponent } from '../../components/heatmap-view/heatmap-view
     GlobalRulesModalComponent,
     EditAvailabilityComponent,
     HeatmapViewComponent,
+    HelpModalComponent,
   ],
   template: `
     <div class="min-h-screen bg-white flex flex-col">
@@ -113,6 +115,15 @@ import { HeatmapViewComponent } from '../../components/heatmap-view/heatmap-view
             >
               My Polls
             </a>
+
+            <button
+              type="button"
+              (click)="showHelpModal.set(true)"
+              class="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+              title="Help & About"
+            >
+              Help
+            </button>
           </div>
         </div>
       </header>
@@ -346,6 +357,10 @@ import { HeatmapViewComponent } from '../../components/heatmap-view/heatmap-view
           />
         }
       }
+
+      @if (showHelpModal()) {
+        <app-help-modal (closeModal)="showHelpModal.set(false)" />
+      }
     </div>
   `,
 })
@@ -359,6 +374,7 @@ export class EventViewComponent implements OnInit, OnDestroy {
   eventData = signal<SchedulerEvent | null>(null);
   isUnlocked = signal<boolean>(false);
   isAdmin = signal<boolean>(false);
+  showHelpModal = signal<boolean>(false);
 
   // Password gate state
   passwordAttempt = '';

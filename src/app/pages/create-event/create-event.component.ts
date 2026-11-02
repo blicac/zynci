@@ -9,11 +9,12 @@ import {
   encodeShareToken,
   getDefaultDateRange,
 } from '../../utils/scheduler.utils';
+import { HelpModalComponent } from '../../components/help-modal/help-modal.component';
 
 @Component({
   selector: 'app-create-event',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, HelpModalComponent],
   template: `
     <div class="min-h-screen flex flex-col justify-between bg-white">
       <!-- Top Bar (Black) -->
@@ -40,6 +41,14 @@ import {
                 My Polls ({{ myPolls().length }})
               </a>
             }
+            <button
+              type="button"
+              (click)="showHelpModal.set(true)"
+              class="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+              title="Help & About"
+            >
+              Help
+            </button>
           </div>
         </div>
       </header>
@@ -354,16 +363,14 @@ import {
 
       <!-- Footer -->
       <footer class="py-4 text-center text-xs text-slate-400 border-t border-slate-200/60 bg-white">
-        <div class="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Zynci — Minimalist Group Scheduler</span>
-          <span>
-            Storage Mode:
-            <strong class="text-slate-600">
-              {{ supabaseService.isUsingSupabase ? 'Supabase PostgreSQL Live' : 'Shared Local Server' }}
-            </strong>
-          </span>
+        <div class="max-w-4xl mx-auto px-4 flex items-center justify-center">
+          <span>Zynci — Minimalist Group Scheduler · Created by Bruna Freitas</span>
         </div>
       </footer>
+
+      @if (showHelpModal()) {
+        <app-help-modal (closeModal)="showHelpModal.set(false)" />
+      }
     </div>
   `,
 })
@@ -378,6 +385,7 @@ export class CreateEventComponent implements OnInit {
   endDate = this.defaultRange.endDate;
   sharedPassword = '';
   showPassword = signal<boolean>(false);
+  showHelpModal = signal<boolean>(false);
   loading = signal<boolean>(false);
   errorMessage = signal<string>('');
 
