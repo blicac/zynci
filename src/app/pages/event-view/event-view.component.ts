@@ -536,7 +536,7 @@ export class EventViewComponent implements OnInit, OnDestroy {
     this.participants.set(data.participants);
     this.availabilities.set(data.availabilities);
 
-    const owned = this.supabaseService.getOwnedParticipant(this.eventId);
+    const owned = this.supabaseService.getOwnedParticipant(this.eventId, data.participants);
     const matchingParticipant = owned
       ? data.participants.find((p) => p.id === owned.participantId)
       : undefined;

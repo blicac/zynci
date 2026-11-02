@@ -30,6 +30,7 @@ create table if not exists public.events (
 create table if not exists public.participants (
     id uuid primary key default gen_random_uuid(),
     event_id uuid not null references public.events(id) on delete cascade,
+    user_id text,
     name text not null check (char_length(trim(name)) > 0 and char_length(name) <= 60),
     created_at timestamptz not null default now(),
     unique (event_id, name)

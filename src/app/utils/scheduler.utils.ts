@@ -59,6 +59,17 @@ export function isValidIsoDate(dateStr: string): boolean {
 }
 
 /**
+ * Returns today's local date in YYYY-MM-DD format.
+ */
+export function getTodayIsoDate(): string {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
  * Returns today's local date and 13 days ahead in YYYY-MM-DD format.
  */
 export function getDefaultDateRange(): { startDate: string; endDate: string } {
@@ -182,6 +193,7 @@ export function decodeShareToken(token: string | null | undefined): SchedulerEve
       typeof parsed.e === 'string' &&
       isValidIsoDate(parsed.s) &&
       isValidIsoDate(parsed.e) &&
+      parsed.e >= getTodayIsoDate() &&
       calculateDaysInclusive(parsed.s, parsed.e) > 0 &&
       calculateDaysInclusive(parsed.s, parsed.e) <= 90 &&
       typeof parsed.p === 'string' &&

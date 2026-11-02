@@ -8,6 +8,7 @@ import {
 } from '../models/scheduler.models';
 import {
   calculateDaysInclusive,
+  getTodayIsoDate,
   hashPassword,
   isValidIsoDate,
 } from '../utils/scheduler.utils';
@@ -24,6 +25,7 @@ const UNLOCKED_EVENTS_KEY = 'syncup_unlocked_events_v1';
 const OWNED_PARTICIPANTS_KEY = 'syncup_owned_participants_v1';
 const ADMIN_EVENTS_KEY = 'syncup_admin_events_v1';
 const GLOBAL_USER_NAME_KEY = 'syncup_global_user_name_v1';
+const GLOBAL_USER_ID_KEY = 'syncup_global_user_id_v1';
 const MERGED_TO_SERVER_KEY = 'syncup_merged_to_server_v1';
 
 export interface OwnedParticipantIdentity {
@@ -46,8 +48,10 @@ export class SupabaseService {
       this.isUsingSupabase = true;
     } else {
       this.isUsingSupabase = false;
-      this.purgeLegacyDemoEventFromLocal();
+      this.purgeLegacyAndExpiredFromLocal();
     }
+    // Ensure a persistent browser user ID exists
+    this.getOrCreateUserId();
   }
 
   private getLocalApiBaseUrl(): string {
@@ -89,8 +93,27 @@ export class SupabaseService {
   }
 
   // ============================================================================
-  // Browser-Bound Participant Identity (No Accounts, Prevents Editing Others)
+  // Browser-Bound User ID & Participant Identity (Retrieve by User)
   // ============================================================================
+
+  /**
+   * Returns a persistent unique user ID for this browser so participant records
+   * are saved and retrieved by user rather than by name alone.
+   */
+  getOrCreateUserId(): string {
+    try {
+      const existing = localStorage.getItem(GLOBAL_USER_ID_KEY)?.trim();
+      if (existing) return existing;
+      const generated =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? `usr-${crypto.randomUUID()}`
+          : `usr-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem(GLOBAL_USER_ID_KEY, generated);
+      return generated;
+    } catch {
+      return 'usr-anonymous';
+    }
+  }
 
   /**
    * Retrieves the global user name remembered across all polls in this browser.
@@ -114,11 +137,41 @@ export class SupabaseService {
   }
 
   /**
-   * Retrieves the participant identity saved in this browser for the given event.
+   * Retrieves the participant identity saved in this browser for the given event,
+   * or resolves it by matching `user_id` from the event's participants list.
    */
-  getOwnedParticipant(eventId: string): OwnedParticipantIdentity | null {
+  getOwnedParticipant(
+    eventId: string,
+    eventParticipants?: Participant[]
+  ): OwnedParticipantIdentity | null {
+    const userId = this.getOrCreateUserId();
     const map = this.getOwnedParticipantsMap();
-    return map[eventId] ?? null;
+    const mapped = map[eventId] ?? null;
+
+    if (eventParticipants) {
+      // 1. Match by persistent user_id
+      const byUser = eventParticipants.find((p) => p.user_id && p.user_id === userId);
+      if (byUser) {
+        if (!mapped || mapped.participantId !== byUser.id || mapped.name !== byUser.name) {
+          this.saveOwnedParticipant(eventId, {
+            participantId: byUser.id,
+            name: byUser.name,
+          });
+        }
+        return { participantId: byUser.id, name: byUser.name };
+      }
+
+      // 2. Match by previously saved participantId in this browser
+      if (mapped) {
+        const byId = eventParticipants.find((p) => p.id === mapped.participantId);
+        if (byId) {
+          return { participantId: byId.id, name: byId.name };
+        }
+        return null;
+      }
+    }
+
+    return mapped;
   }
 
   /**
@@ -150,7 +203,7 @@ export class SupabaseService {
   }
 
   // ============================================================================
-  // Poll Creator / Admin Management (Saved in Browser Storage on Creation)
+  // Poll Creator / Admin Management & Automatic Expiry Cleanup
   // ============================================================================
 
   /**
@@ -182,9 +235,40 @@ export class SupabaseService {
   }
 
   /**
-   * Returns all events created/administered by this browser.
+   * Automatically deletes any polls whose last selected date (`end_date`) has passed.
+   */
+  async purgeExpiredEvents(): Promise<void> {
+    const todayStr = getTodayIsoDate();
+
+    if (this.supabase) {
+      await this.supabase.from('events').delete().lt('end_date', todayStr);
+      return;
+    }
+
+    const db = await this.fetchSyncedDb();
+    const expiredIds = new Set(
+      db.events.filter((e) => e.end_date < todayStr).map((e) => e.id)
+    );
+    if (expiredIds.size > 0) {
+      db.events = db.events.filter((e) => !expiredIds.has(e.id));
+      db.participants = db.participants.filter((p) => !expiredIds.has(p.event_id));
+      db.availabilities = db.availabilities.filter((a) => !expiredIds.has(a.event_id));
+      await this.saveSyncedDb(db);
+
+      const adminMap = this.getAdminEventsMap();
+      for (const id of expiredIds) {
+        delete adminMap[id];
+      }
+      localStorage.setItem(ADMIN_EVENTS_KEY, JSON.stringify(adminMap));
+    }
+  }
+
+  /**
+   * Returns all active (non-expired) events created/administered by this browser.
    */
   async getMyCreatedEvents(): Promise<SchedulerEvent[]> {
+    await this.purgeExpiredEvents();
+    const todayStr = getTodayIsoDate();
     const adminMap = this.getAdminEventsMap();
     const adminIds = new Set<string>(
       Object.keys(adminMap).filter((k) => adminMap[k] && k !== LEGACY_DEMO_EVENT_ID)
@@ -197,6 +281,7 @@ export class SupabaseService {
         .from('events')
         .select('*')
         .in('id', ids)
+        .gte('end_date', todayStr)
         .order('created_at', { ascending: false });
 
       if (error) throw new Error(error.message);
@@ -205,7 +290,7 @@ export class SupabaseService {
 
     const db = await this.fetchSyncedDb();
     return db.events
-      .filter((e) => adminIds.has(e.id))
+      .filter((e) => adminIds.has(e.id) && e.end_date >= todayStr)
       .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
   }
 
@@ -227,6 +312,10 @@ export class SupabaseService {
 
     if (!isValidIsoDate(params.start_date) || !isValidIsoDate(params.end_date)) {
       throw new Error('Invalid start or end date format.');
+    }
+
+    if (params.end_date < getTodayIsoDate()) {
+      throw new Error('End date cannot be in the past.');
     }
 
     const days = calculateDaysInclusive(params.start_date, params.end_date);
@@ -258,7 +347,6 @@ export class SupabaseService {
 
       if (error) throw new Error(error.message);
 
-      // Remove out-of-range availabilities using separate safe lt / gt queries
       await Promise.all([
         this.supabase
           .from('availabilities')
@@ -337,6 +425,10 @@ export class SupabaseService {
       throw new Error('Invalid date format.');
     }
 
+    if (params.end_date < getTodayIsoDate()) {
+      throw new Error('End date cannot be in the past.');
+    }
+
     const days = calculateDaysInclusive(params.start_date, params.end_date);
     if (days <= 0 || days > 90) {
       throw new Error('Date range must be between 1 and 90 days.');
@@ -387,6 +479,9 @@ export class SupabaseService {
       return null;
     }
 
+    await this.purgeExpiredEvents();
+    const todayStr = getTodayIsoDate();
+
     if (this.supabase) {
       const { data, error } = await this.supabase
         .from('events')
@@ -395,15 +490,24 @@ export class SupabaseService {
         .maybeSingle();
 
       if (error) throw new Error(error.message);
-      return (data as SchedulerEvent | null) ?? sharedFallback ?? null;
+      const ev = (data as SchedulerEvent | null) ?? sharedFallback ?? null;
+      if (ev && ev.end_date < todayStr) {
+        await this.deleteEvent(ev.id);
+        return null;
+      }
+      return ev;
     }
 
     const db = await this.fetchSyncedDb();
     let found = db.events.find((e) => e.id === eventId) ?? null;
-    if (!found && sharedFallback && sharedFallback.id === eventId) {
+    if (!found && sharedFallback && sharedFallback.id === eventId && sharedFallback.end_date >= todayStr) {
       db.events.push(sharedFallback);
       await this.saveSyncedDb(db);
       found = sharedFallback;
+    }
+    if (found && found.end_date < todayStr) {
+      await this.deleteEvent(found.id);
+      return null;
     }
     return found;
   }
@@ -442,8 +546,8 @@ export class SupabaseService {
   }
 
   /**
-   * Resolves the browser's owned participant if one already exists in localStorage,
-   * or creates a brand-new participant while rejecting names that belong to someone else.
+   * Resolves the current user's participant by their persistent `user_id` (or saved participantId),
+   * or creates a new participant while ensuring another user in the same poll cannot use the exact same name.
    */
   async registerOrResolveOwnParticipant(
     eventId: string,
@@ -452,6 +556,7 @@ export class SupabaseService {
     const cleanName = requestedName.trim().slice(0, 60);
     if (!cleanName) throw new Error('Please enter your name.');
 
+    const userId = this.getOrCreateUserId();
     const owned = this.getOwnedParticipant(eventId);
 
     if (this.supabase) {
@@ -461,17 +566,27 @@ export class SupabaseService {
         .eq('event_id', eventId);
 
       if (fetchErr) throw new Error(fetchErr.message);
+      const participants = (existingList ?? []) as Participant[];
 
-      const match = (existingList ?? []).find(
-        (p: Participant) => p.name.toLowerCase() === cleanName.toLowerCase()
-      ) as Participant | undefined;
+      // 1. Retrieve by user_id or owned participantId first
+      const ownRecord = participants.find(
+        (p) => (p.user_id && p.user_id === userId) || (owned && p.id === owned.participantId)
+      );
+      if (ownRecord) {
+        this.saveOwnedParticipant(eventId, {
+          participantId: ownRecord.id,
+          name: ownRecord.name,
+        });
+        return { participant: ownRecord, isExisting: true };
+      }
 
-      if (match) {
-        if (owned && owned.participantId === match.id) {
-          return { participant: match, isExisting: true };
-        }
+      // 2. Check if another user in this poll already used this name
+      const nameTakenByOther = participants.find(
+        (p) => p.name.toLowerCase() === cleanName.toLowerCase()
+      );
+      if (nameTakenByOther) {
         throw new Error(
-          `"${match.name}" has already been submitted by another participant. Please add an initial or nickname so you don't overwrite their schedule.`
+          `"${nameTakenByOther.name}" is already used in this poll. Please choose a different name or add an initial.`
         );
       }
 
@@ -479,6 +594,7 @@ export class SupabaseService {
         .from('participants')
         .insert({
           event_id: eventId,
+          user_id: userId,
           name: cleanName,
         })
         .select()
@@ -494,21 +610,38 @@ export class SupabaseService {
     }
 
     const db = await this.fetchSyncedDb();
-    const existing = db.participants.find(
-      (p) => p.event_id === eventId && p.name.toLowerCase() === cleanName.toLowerCase()
+    const pollParticipants = db.participants.filter((p) => p.event_id === eventId);
+
+    // 1. Retrieve by user_id or owned participantId first
+    const ownRecord = pollParticipants.find(
+      (p) => (p.user_id && p.user_id === userId) || (owned && p.id === owned.participantId)
     );
-    if (existing) {
-      if (owned && owned.participantId === existing.id) {
-        return { participant: existing, isExisting: true };
+    if (ownRecord) {
+      if (!ownRecord.user_id) {
+        ownRecord.user_id = userId;
+        await this.saveSyncedDb(db);
       }
+      this.saveOwnedParticipant(eventId, {
+        participantId: ownRecord.id,
+        name: ownRecord.name,
+      });
+      return { participant: ownRecord, isExisting: true };
+    }
+
+    // 2. Prevent another user in the same poll from using an already-taken name
+    const nameTakenByOther = pollParticipants.find(
+      (p) => p.name.toLowerCase() === cleanName.toLowerCase()
+    );
+    if (nameTakenByOther) {
       throw new Error(
-        `"${existing.name}" has already been submitted by another participant. Please add an initial or nickname so you don't overwrite their schedule.`
+        `"${nameTakenByOther.name}" is already used in this poll. Please choose a different name or add an initial.`
       );
     }
 
     const created: Participant = {
       id: crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`,
       event_id: eventId,
+      user_id: userId,
       name: cleanName,
       created_at: new Date().toISOString(),
     };
@@ -522,53 +655,73 @@ export class SupabaseService {
   }
 
   /**
-   * Updates the global user name and renames the user's participant record in the current event
-   * (and any other locally stored events owned by this browser where the name is not taken).
+   * Updates the user's saved name and renames all participant records belonging to this user (`user_id` or ownedMap).
    */
   async updateOwnName(eventId: string, newName: string): Promise<string> {
     const cleanName = newName.trim().slice(0, 60);
     if (!cleanName) throw new Error('Name cannot be empty.');
 
+    const userId = this.getOrCreateUserId();
     const ownedMap = this.getOwnedParticipantsMap();
     const ownedInCurrent = ownedMap[eventId];
 
     if (this.supabase) {
-      if (ownedInCurrent) {
-        const { data: eventParticipants } = await this.supabase
-          .from('participants')
-          .select('*')
-          .eq('event_id', eventId);
+      const { data: eventParticipants } = await this.supabase
+        .from('participants')
+        .select('*')
+        .eq('event_id', eventId);
 
-        const conflict = (eventParticipants ?? []).some(
-          (p: Participant) =>
-            p.id !== ownedInCurrent.participantId &&
+      const list = (eventParticipants ?? []) as Participant[];
+      const myRecordInCurrent = list.find(
+        (p) => (p.user_id && p.user_id === userId) || (ownedInCurrent && p.id === ownedInCurrent.participantId)
+      );
+
+      if (myRecordInCurrent) {
+        const conflict = list.some(
+          (p) =>
+            p.id !== myRecordInCurrent.id &&
             p.name.toLowerCase() === cleanName.toLowerCase()
         );
-
         if (conflict) {
           throw new Error(`"${cleanName}" is already taken in this poll.`);
         }
 
         const { error } = await this.supabase
           .from('participants')
-          .update({ name: cleanName })
-          .eq('id', ownedInCurrent.participantId)
+          .update({ name: cleanName, user_id: userId })
+          .eq('id', myRecordInCurrent.id)
           .eq('event_id', eventId);
 
         if (error) throw new Error(error.message);
-        ownedMap[eventId] = { participantId: ownedInCurrent.participantId, name: cleanName };
-        localStorage.setItem(OWNED_PARTICIPANTS_KEY, JSON.stringify(ownedMap));
+        ownedMap[eventId] = { participantId: myRecordInCurrent.id, name: cleanName };
       }
+
+      // Also update all other polls where this user_id is the participant
+      await this.supabase
+        .from('participants')
+        .update({ name: cleanName })
+        .eq('user_id', userId);
+
+      for (const [evtId, ident] of Object.entries(ownedMap)) {
+        ownedMap[evtId] = { participantId: ident.participantId, name: cleanName };
+      }
+      localStorage.setItem(OWNED_PARTICIPANTS_KEY, JSON.stringify(ownedMap));
       this.setGlobalUserName(cleanName);
       return cleanName;
     }
 
     const db = await this.fetchSyncedDb();
-    if (ownedInCurrent) {
+    const myRecordInCurrent = db.participants.find(
+      (p) =>
+        p.event_id === eventId &&
+        ((p.user_id && p.user_id === userId) || (ownedInCurrent && p.id === ownedInCurrent.participantId))
+    );
+
+    if (myRecordInCurrent) {
       const conflict = db.participants.find(
         (p) =>
           p.event_id === eventId &&
-          p.id !== ownedInCurrent.participantId &&
+          p.id !== myRecordInCurrent.id &&
           p.name.toLowerCase() === cleanName.toLowerCase()
       );
       if (conflict) {
@@ -576,21 +729,13 @@ export class SupabaseService {
       }
     }
 
-    for (const [evtId, ident] of Object.entries(ownedMap)) {
-      const conflictInOtherPoll = db.participants.some(
-        (p) =>
-          p.event_id === evtId &&
-          p.id !== ident.participantId &&
-          p.name.toLowerCase() === cleanName.toLowerCase()
-      );
-      if (!conflictInOtherPoll) {
-        const p = db.participants.find(
-          (item) => item.id === ident.participantId && item.event_id === evtId
-        );
-        if (p) {
-          p.name = cleanName;
-        }
-        ownedMap[evtId] = { participantId: ident.participantId, name: cleanName };
+    // Update all participant records belonging to this user across all polls
+    const ownedIds = new Set(Object.values(ownedMap).map((o) => o.participantId));
+    for (const p of db.participants) {
+      if ((p.user_id && p.user_id === userId) || ownedIds.has(p.id)) {
+        p.user_id = userId;
+        p.name = cleanName;
+        ownedMap[p.event_id] = { participantId: p.id, name: cleanName };
       }
     }
 
@@ -675,13 +820,19 @@ export class SupabaseService {
   // Shared Local Server + LocalStorage Sync Engine
   // ============================================================================
 
-  private purgeLegacyDemoEventFromLocal(): void {
+  private purgeLegacyAndExpiredFromLocal(): void {
     try {
+      const todayStr = getTodayIsoDate();
       const db = this.readLocalDb();
+      const validEventIds = new Set(
+        db.events
+          .filter((e) => e.id !== LEGACY_DEMO_EVENT_ID && e.end_date >= todayStr)
+          .map((e) => e.id)
+      );
       const filtered: LocalStoreSchema = {
-        events: db.events.filter((e) => e.id !== LEGACY_DEMO_EVENT_ID),
-        participants: db.participants.filter((p) => p.event_id !== LEGACY_DEMO_EVENT_ID),
-        availabilities: db.availabilities.filter((a) => a.event_id !== LEGACY_DEMO_EVENT_ID),
+        events: db.events.filter((e) => validEventIds.has(e.id)),
+        participants: db.participants.filter((p) => validEventIds.has(p.event_id)),
+        availabilities: db.availabilities.filter((a) => validEventIds.has(a.event_id)),
       };
       this.writeLocalDb(filtered);
     } catch {
@@ -747,16 +898,22 @@ export class SupabaseService {
 
   private readLocalDb(): LocalStoreSchema {
     try {
+      const todayStr = getTodayIsoDate();
       const raw = localStorage.getItem(LOCAL_STORAGE_DB_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as LocalStoreSchema;
+        const validEventIds = new Set(
+          (parsed.events ?? [])
+            .filter((e) => e.id !== LEGACY_DEMO_EVENT_ID && e.end_date >= todayStr)
+            .map((e) => e.id)
+        );
         return {
-          events: (parsed.events ?? []).filter((e) => e.id !== LEGACY_DEMO_EVENT_ID),
-          participants: (parsed.participants ?? []).filter(
-            (p) => p.event_id !== LEGACY_DEMO_EVENT_ID
+          events: (parsed.events ?? []).filter((e) => validEventIds.has(e.id)),
+          participants: (parsed.participants ?? []).filter((p) =>
+            validEventIds.has(p.event_id)
           ),
-          availabilities: (parsed.availabilities ?? []).filter(
-            (a) => a.event_id !== LEGACY_DEMO_EVENT_ID
+          availabilities: (parsed.availabilities ?? []).filter((a) =>
+            validEventIds.has(a.event_id)
           ),
         };
       }

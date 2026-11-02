@@ -12,14 +12,24 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2 MB limit to prevent memory exhausti
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_SLOTS = new Set(['morning', 'afternoon', 'evening']);
 
+function getTodayIsoDate() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function isValidString(val, maxLen = 256) {
   return typeof val === 'string' && val.trim().length > 0 && val.length <= maxLen;
 }
 
 function sanitizeDb(db) {
+  const todayStr = getTodayIsoDate();
   const events = [];
   if (Array.isArray(db?.events)) {
     for (const e of db.events) {
+      // Automatically delete polls once their last selected date (end_date) has passed
       if (
         e &&
         isValidString(e.id, 100) &&
@@ -28,6 +38,7 @@ function sanitizeDb(db) {
         DATE_REGEX.test(String(e.start_date)) &&
         DATE_REGEX.test(String(e.end_date)) &&
         String(e.start_date) <= String(e.end_date) &&
+        String(e.end_date) >= todayStr &&
         isValidString(e.password_hash, 256)
       ) {
         events.push({
@@ -58,6 +69,7 @@ function sanitizeDb(db) {
         participants.push({
           id: String(p.id).trim(),
           event_id: String(p.event_id).trim(),
+          user_id: isValidString(p.user_id, 100) ? String(p.user_id).trim() : undefined,
           name: String(p.name).trim().slice(0, 60),
           created_at: typeof p.created_at === 'string' ? p.created_at : new Date().toISOString(),
         });

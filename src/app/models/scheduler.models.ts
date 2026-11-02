@@ -20,6 +20,7 @@ export interface SchedulerEvent {
 export interface Participant {
   id: string;
   event_id: string;
+  user_id?: string;
   name: string;
   created_at?: string;
 }
