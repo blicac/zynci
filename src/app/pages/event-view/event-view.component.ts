@@ -29,7 +29,7 @@ import {
   encodeShareToken,
   formatShortMonthDay,
   generateDateRange,
-  hashPassword,
+  verifyPassword,
 } from '../../utils/scheduler.utils';
 import { GlobalRulesModalComponent } from '../../components/global-rules-modal/global-rules-modal.component';
 import { EditAvailabilityComponent } from '../../components/edit-availability/edit-availability.component';
@@ -512,14 +512,38 @@ export class EventViewComponent implements OnInit, OnDestroy {
   }
 
   private async refreshParticipantsAndAvailabilities(): Promise<void> {
+    if (!this.eventId) return;
+
+    const latestEvent = await this.supabaseService.getEventById(this.eventId);
+    if (latestEvent) {
+      const currentEvent = this.eventData();
+      this.eventData.set(latestEvent);
+      if (
+        !currentEvent ||
+        currentEvent.start_date !== latestEvent.start_date ||
+        currentEvent.end_date !== latestEvent.end_date
+      ) {
+        this.days.set(generateDateRange(latestEvent.start_date, latestEvent.end_date));
+      }
+      if (!this.supabaseService.isEventUnlocked(latestEvent.id, latestEvent.password_hash)) {
+        this.isUnlocked.set(false);
+        this.viewMode.set('heatmap');
+        return;
+      }
+    }
+
     const data = await this.supabaseService.getEventParticipantsAndAvailabilities(this.eventId);
     this.participants.set(data.participants);
     this.availabilities.set(data.availabilities);
 
     const owned = this.supabaseService.getOwnedParticipant(this.eventId);
-    if (owned && data.participants.some((p) => p.id === owned.participantId)) {
-      this.ownedParticipantName.set(owned.name);
-      this.globalUserName.set(owned.name);
+    const matchingParticipant = owned
+      ? data.participants.find((p) => p.id === owned.participantId)
+      : undefined;
+
+    if (matchingParticipant) {
+      this.ownedParticipantName.set(matchingParticipant.name);
+      this.globalUserName.set(matchingParticipant.name);
     } else {
       this.ownedParticipantName.set(null);
       this.globalUserName.set(this.supabaseService.getGlobalUserName());
@@ -531,8 +555,8 @@ export class EventViewComponent implements OnInit, OnDestroy {
     const ev = this.eventData();
     if (!ev) return;
 
-    const candidateHash = await hashPassword(this.passwordAttempt);
-    if (candidateHash !== ev.password_hash) {
+    const isValid = await verifyPassword(this.passwordAttempt, ev.password_hash);
+    if (!isValid) {
       this.gateError.set('Incorrect password. Please try again.');
       return;
     }

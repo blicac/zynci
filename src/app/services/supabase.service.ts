@@ -6,7 +6,11 @@ import {
   Participant,
   SchedulerEvent,
 } from '../models/scheduler.models';
-import { hashPassword } from '../utils/scheduler.utils';
+import {
+  calculateDaysInclusive,
+  hashPassword,
+  isValidIsoDate,
+} from '../utils/scheduler.utils';
 
 interface LocalStoreSchema {
   events: SchedulerEvent[];
@@ -104,7 +108,7 @@ export class SupabaseService {
    * Saves the global user name across all polls in this browser.
    */
   setGlobalUserName(name: string): void {
-    const clean = name.trim();
+    const clean = name.trim().slice(0, 60);
     if (!clean) return;
     localStorage.setItem(GLOBAL_USER_NAME_KEY, clean);
   }
@@ -218,8 +222,17 @@ export class SupabaseService {
       new_raw_password?: string;
     }
   ): Promise<SchedulerEvent> {
-    const cleanTitle = params.title.trim();
+    const cleanTitle = params.title.trim().slice(0, 120);
     if (!cleanTitle) throw new Error('Event title is required.');
+
+    if (!isValidIsoDate(params.start_date) || !isValidIsoDate(params.end_date)) {
+      throw new Error('Invalid start or end date format.');
+    }
+
+    const days = calculateDaysInclusive(params.start_date, params.end_date);
+    if (days <= 0 || days > 90) {
+      throw new Error('Date range must be between 1 and 90 days.');
+    }
 
     let newPasswordHash: string | undefined;
     if (params.new_raw_password && params.new_raw_password.trim()) {
@@ -245,11 +258,19 @@ export class SupabaseService {
 
       if (error) throw new Error(error.message);
 
-      await this.supabase
-        .from('availabilities')
-        .delete()
-        .eq('event_id', eventId)
-        .or(`date.lt.${params.start_date},date.gt.${params.end_date}`);
+      // Remove out-of-range availabilities using separate safe lt / gt queries
+      await Promise.all([
+        this.supabase
+          .from('availabilities')
+          .delete()
+          .eq('event_id', eventId)
+          .lt('date', params.start_date),
+        this.supabase
+          .from('availabilities')
+          .delete()
+          .eq('event_id', eventId)
+          .gt('date', params.end_date),
+      ]);
 
       const updated = data as SchedulerEvent;
       this.markEventUnlocked(updated.id, updated.password_hash);
@@ -309,13 +330,25 @@ export class SupabaseService {
     end_date: string;
     raw_password: string;
   }): Promise<SchedulerEvent> {
+    const cleanTitle = params.title.trim().slice(0, 120);
+    if (!cleanTitle) throw new Error('Please enter a poll title.');
+
+    if (!isValidIsoDate(params.start_date) || !isValidIsoDate(params.end_date)) {
+      throw new Error('Invalid date format.');
+    }
+
+    const days = calculateDaysInclusive(params.start_date, params.end_date);
+    if (days <= 0 || days > 90) {
+      throw new Error('Date range must be between 1 and 90 days.');
+    }
+
     const password_hash = await hashPassword(params.raw_password);
 
     if (this.supabase) {
       const { data, error } = await this.supabase
         .from('events')
         .insert({
-          title: params.title.trim(),
+          title: cleanTitle,
           start_date: params.start_date,
           end_date: params.end_date,
           password_hash,
@@ -333,9 +366,9 @@ export class SupabaseService {
     const db = await this.fetchSyncedDb();
     const newEvent: SchedulerEvent = {
       id: crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
-      title: params.title.trim(),
+      title: cleanTitle,
       start_date: params.start_date,
-      end_date: params.start_date <= params.end_date ? params.end_date : params.start_date,
+      end_date: params.end_date,
       password_hash,
       created_at: new Date().toISOString(),
     };
@@ -416,7 +449,7 @@ export class SupabaseService {
     eventId: string,
     requestedName: string
   ): Promise<{ participant: Participant; isExisting: boolean }> {
-    const cleanName = requestedName.trim();
+    const cleanName = requestedName.trim().slice(0, 60);
     if (!cleanName) throw new Error('Please enter your name.');
 
     const owned = this.getOwnedParticipant(eventId);
@@ -425,13 +458,15 @@ export class SupabaseService {
       const { data: existingList, error: fetchErr } = await this.supabase
         .from('participants')
         .select('*')
-        .eq('event_id', eventId)
-        .ilike('name', cleanName);
+        .eq('event_id', eventId);
 
       if (fetchErr) throw new Error(fetchErr.message);
 
-      if (existingList && existingList.length > 0) {
-        const match = existingList[0] as Participant;
+      const match = (existingList ?? []).find(
+        (p: Participant) => p.name.toLowerCase() === cleanName.toLowerCase()
+      ) as Participant | undefined;
+
+      if (match) {
         if (owned && owned.participantId === match.id) {
           return { participant: match, isExisting: true };
         }
@@ -488,10 +523,10 @@ export class SupabaseService {
 
   /**
    * Updates the global user name and renames the user's participant record in the current event
-   * (and any other locally stored events owned by this browser).
+   * (and any other locally stored events owned by this browser where the name is not taken).
    */
   async updateOwnName(eventId: string, newName: string): Promise<string> {
-    const cleanName = newName.trim();
+    const cleanName = newName.trim().slice(0, 60);
     if (!cleanName) throw new Error('Name cannot be empty.');
 
     const ownedMap = this.getOwnedParticipantsMap();
@@ -499,13 +534,18 @@ export class SupabaseService {
 
     if (this.supabase) {
       if (ownedInCurrent) {
-        const { data: conflict } = await this.supabase
+        const { data: eventParticipants } = await this.supabase
           .from('participants')
           .select('*')
-          .eq('event_id', eventId)
-          .ilike('name', cleanName);
+          .eq('event_id', eventId);
 
-        if (conflict && conflict.some((p) => p.id !== ownedInCurrent.participantId)) {
+        const conflict = (eventParticipants ?? []).some(
+          (p: Participant) =>
+            p.id !== ownedInCurrent.participantId &&
+            p.name.toLowerCase() === cleanName.toLowerCase()
+        );
+
+        if (conflict) {
           throw new Error(`"${cleanName}" is already taken in this poll.`);
         }
 
@@ -537,13 +577,21 @@ export class SupabaseService {
     }
 
     for (const [evtId, ident] of Object.entries(ownedMap)) {
-      const p = db.participants.find(
-        (item) => item.id === ident.participantId && item.event_id === evtId
+      const conflictInOtherPoll = db.participants.some(
+        (p) =>
+          p.event_id === evtId &&
+          p.id !== ident.participantId &&
+          p.name.toLowerCase() === cleanName.toLowerCase()
       );
-      if (p) {
-        p.name = cleanName;
+      if (!conflictInOtherPoll) {
+        const p = db.participants.find(
+          (item) => item.id === ident.participantId && item.event_id === evtId
+        );
+        if (p) {
+          p.name = cleanName;
+        }
+        ownedMap[evtId] = { participantId: ident.participantId, name: cleanName };
       }
-      ownedMap[evtId] = { participantId: ident.participantId, name: cleanName };
     }
 
     await this.saveSyncedDb(db);

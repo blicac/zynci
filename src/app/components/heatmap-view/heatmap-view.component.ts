@@ -249,7 +249,7 @@ import {
 
               <button
                 type="button"
-                (click)="activeSlot.set(null)"
+                (click)="selectedSlotKey.set(null)"
                 class="text-slate-400 hover:text-slate-700 font-bold px-1.5 cursor-pointer"
                 title="Close"
               >
@@ -280,7 +280,16 @@ export class HeatmapViewComponent {
   showNamePrompt = signal<boolean>(false);
   isRenaming = signal<boolean>(false);
   enteredName = '';
-  activeSlot = signal<SlotConsensus | null>(null);
+  selectedSlotKey = signal<{ dateStr: string; slot: TimeSlot } | null>(null);
+
+  activeSlot(): SlotConsensus | null {
+    const sel = this.selectedSlotKey();
+    if (!sel) return null;
+    if (!this.days.some((d) => d.dateStr === sel.dateStr)) {
+      return null;
+    }
+    return this.getConsensus(sel.dateStr, sel.slot);
+  }
 
   openNamePrompt(): void {
     this.isRenaming.set(false);
@@ -345,16 +354,16 @@ export class HeatmapViewComponent {
   }
 
   selectSlotForTooltip(slot: SlotConsensus): void {
-    const current = this.activeSlot();
+    const current = this.selectedSlotKey();
     if (current && current.dateStr === slot.dateStr && current.slot === slot.slot) {
-      this.activeSlot.set(null);
+      this.selectedSlotKey.set(null);
     } else {
-      this.activeSlot.set(slot);
+      this.selectedSlotKey.set({ dateStr: slot.dateStr, slot: slot.slot });
     }
   }
 
   isSelectedSlot(slot: SlotConsensus): boolean {
-    const current = this.activeSlot();
+    const current = this.selectedSlotKey();
     return !!current && current.dateStr === slot.dateStr && current.slot === slot.slot;
   }
 }

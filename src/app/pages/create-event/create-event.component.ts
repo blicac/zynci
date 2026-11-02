@@ -4,7 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { SupabaseService } from '../../services/supabase.service';
 import { Participant, SchedulerEvent } from '../../models/scheduler.models';
-import { calculateDaysInclusive, encodeShareToken } from '../../utils/scheduler.utils';
+import {
+  calculateDaysInclusive,
+  encodeShareToken,
+  getDefaultDateRange,
+} from '../../utils/scheduler.utils';
 
 @Component({
   selector: 'app-create-event',
@@ -368,9 +372,10 @@ export class CreateEventComponent implements OnInit {
   private readonly router = inject(Router);
 
   // Create form state
+  private readonly defaultRange = getDefaultDateRange();
   title = '';
-  startDate = '2026-11-02';
-  endDate = '2026-11-15';
+  startDate = this.defaultRange.startDate;
+  endDate = this.defaultRange.endDate;
   sharedPassword = '';
   showPassword = signal<boolean>(false);
   loading = signal<boolean>(false);

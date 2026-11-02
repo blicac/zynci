@@ -1,21 +1,19 @@
 import { DayRowInfo, SchedulerEvent } from '../models/scheduler.models';
 
-/**
- * Hashes a shared password using Web Crypto SHA-256 so raw passwords aren't stored in plain text.
- */
-export async function hashPassword(password: string): Promise<string> {
-  const normalized = password.trim();
+const PASSWORD_DOMAIN_SALT = 'zynci_schedule_salt_v1:';
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+async function sha256Hex(input: string): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(normalized);
+  const data = encoder.encode(input);
   if (typeof crypto !== 'undefined' && crypto.subtle) {
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
   }
-  // Fallback simple deterministic hash if subtle crypto is unavailable
   let hash = 0;
-  for (let i = 0; i < normalized.length; i++) {
-    const chr = normalized.charCodeAt(i);
+  for (let i = 0; i < input.length; i++) {
+    const chr = input.charCodeAt(i);
     hash = (hash << 5) - hash + chr;
     hash |= 0;
   }
@@ -23,16 +21,69 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /**
+ * Hashes a shared password using domain-salted Web Crypto SHA-256 so raw passwords
+ * aren't stored in plain text or vulnerable to generic unsalted rainbow tables.
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const normalized = password.trim();
+  const digest = await sha256Hex(`${PASSWORD_DOMAIN_SALT}${normalized}`);
+  return `v1_${digest}`;
+}
+
+/**
+ * Verifies a password attempt against a stored hash (supports both v1 salted hashes
+ * and legacy unsalted hashes so existing polls remain accessible).
+ */
+export async function verifyPassword(
+  passwordAttempt: string,
+  expectedHash: string
+): Promise<boolean> {
+  if (!expectedHash) return false;
+  const normalized = passwordAttempt.trim();
+  if (expectedHash.startsWith('v1_')) {
+    const salted = await hashPassword(normalized);
+    return salted === expectedHash;
+  }
+  const legacyDigest = await sha256Hex(normalized);
+  return legacyDigest === expectedHash;
+}
+
+/**
+ * Validates that a string is a well-formed YYYY-MM-DD date.
+ */
+export function isValidIsoDate(dateStr: string): boolean {
+  if (!ISO_DATE_REGEX.test(dateStr)) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+
+/**
+ * Returns today's local date and 13 days ahead in YYYY-MM-DD format.
+ */
+export function getDefaultDateRange(): { startDate: string; endDate: string } {
+  const today = new Date();
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 13);
+  const fmt = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  return { startDate: fmt(today), endDate: fmt(end) };
+}
+
+/**
  * Generates an inclusive list of DayRowInfo objects between startDateStr and endDateStr (YYYY-MM-DD).
  */
 export function generateDateRange(startDateStr: string, endDateStr: string): DayRowInfo[] {
   const result: DayRowInfo[] = [];
-  const startParts = startDateStr.split('-').map(Number);
-  const endParts = endDateStr.split('-').map(Number);
-
-  if (startParts.length !== 3 || endParts.length !== 3) {
+  if (!isValidIsoDate(startDateStr) || !isValidIsoDate(endDateStr)) {
     return result;
   }
+
+  const startParts = startDateStr.split('-').map(Number);
+  const endParts = endDateStr.split('-').map(Number);
 
   const current = new Date(startParts[0], startParts[1] - 1, startParts[2]);
   const end = new Date(endParts[0], endParts[1] - 1, endParts[2]);
@@ -55,11 +106,11 @@ export function generateDateRange(startDateStr: string, endDateStr: string): Day
 
     result.push({
       dateStr,
-      displayLabel: fullFormatter.format(current), // e.g., "Mon, Nov 2"
-      weekdayShort: weekdayFormatter.format(current), // e.g., "Mon"
-      dayNum: String(current.getDate()), // e.g., "2"
-      monthShort: monthFormatter.format(current), // e.g., "Nov"
-      dayMonthSlash: `${current.getDate()}/${current.getMonth() + 1}`, // e.g., "22/11"
+      displayLabel: fullFormatter.format(current),
+      weekdayShort: weekdayFormatter.format(current),
+      dayNum: String(current.getDate()),
+      monthShort: monthFormatter.format(current),
+      dayMonthSlash: `${current.getDate()}/${current.getMonth() + 1}`,
       dayOfWeek,
       isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
     });
@@ -85,9 +136,9 @@ export function formatShortMonthDay(dateStr: string): string {
  * Calculates the inclusive number of days between two YYYY-MM-DD dates.
  */
 export function calculateDaysInclusive(startDateStr: string, endDateStr: string): number {
+  if (!isValidIsoDate(startDateStr) || !isValidIsoDate(endDateStr)) return 0;
   const s = startDateStr.split('-').map(Number);
   const e = endDateStr.split('-').map(Number);
-  if (s.length !== 3 || e.length !== 3) return 0;
   const start = Date.UTC(s[0], s[1] - 1, s[2]);
   const end = Date.UTC(e[0], e[1] - 1, e[2]);
   return Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
@@ -113,20 +164,36 @@ export function encodeShareToken(event: SchedulerEvent): string {
 }
 
 /**
- * Decodes a URL-safe base64 share token back into a SchedulerEvent.
+ * Decodes and strictly validates a URL-safe base64 share token back into a SchedulerEvent.
  */
 export function decodeShareToken(token: string | null | undefined): SchedulerEvent | null {
-  if (!token) return null;
+  if (!token || token.length > 2048) return null;
   try {
     const json = decodeURIComponent(atob(token));
     const parsed = JSON.parse(json);
-    if (parsed && parsed.i && parsed.t && parsed.s && parsed.e && parsed.p) {
+    if (
+      parsed &&
+      typeof parsed.i === 'string' &&
+      parsed.i.trim().length > 0 &&
+      parsed.i.length <= 100 &&
+      typeof parsed.t === 'string' &&
+      parsed.t.trim().length > 0 &&
+      typeof parsed.s === 'string' &&
+      typeof parsed.e === 'string' &&
+      isValidIsoDate(parsed.s) &&
+      isValidIsoDate(parsed.e) &&
+      calculateDaysInclusive(parsed.s, parsed.e) > 0 &&
+      calculateDaysInclusive(parsed.s, parsed.e) <= 90 &&
+      typeof parsed.p === 'string' &&
+      parsed.p.trim().length > 0 &&
+      parsed.p.length <= 256
+    ) {
       return {
-        id: String(parsed.i),
-        title: String(parsed.t),
-        start_date: String(parsed.s),
-        end_date: String(parsed.e),
-        password_hash: String(parsed.p),
+        id: parsed.i.trim(),
+        title: parsed.t.trim().slice(0, 120),
+        start_date: parsed.s,
+        end_date: parsed.e,
+        password_hash: parsed.p.trim(),
       };
     }
   } catch {

@@ -491,6 +491,14 @@ export class EditAvailabilityComponent {
   }
 
   totalSelectedCount(): number {
-    return Object.values(this.availabilityMap).filter(Boolean).length;
+    let count = 0;
+    for (const d of this.days) {
+      for (const s of this.timeSlots) {
+        if (this.availabilityMap[this.makeKey(d.dateStr, s.key)]) {
+          count++;
+        }
+      }
+    }
+    return count;
   }
 }

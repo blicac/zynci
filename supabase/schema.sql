@@ -15,10 +15,10 @@ end $$;
 -- 2. Create `events` table
 create table if not exists public.events (
     id uuid primary key default gen_random_uuid(),
-    title text not null check (char_length(trim(title)) > 0),
+    title text not null check (char_length(trim(title)) > 0 and char_length(title) <= 120),
     start_date date not null,
     end_date date not null,
-    password_hash text not null,
+    password_hash text not null check (char_length(password_hash) <= 256),
     created_at timestamptz not null default now(),
     constraint valid_date_range check (
         end_date >= start_date
@@ -30,7 +30,7 @@ create table if not exists public.events (
 create table if not exists public.participants (
     id uuid primary key default gen_random_uuid(),
     event_id uuid not null references public.events(id) on delete cascade,
-    name text not null check (char_length(trim(name)) > 0),
+    name text not null check (char_length(trim(name)) > 0 and char_length(name) <= 60),
     created_at timestamptz not null default now(),
     unique (event_id, name)
 );
