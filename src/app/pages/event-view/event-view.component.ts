@@ -57,7 +57,7 @@ import { HeatmapViewComponent } from '../../components/heatmap-view/heatmap-view
               class="h-8 w-8 shrink-0 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-sm shadow-xs hover:bg-emerald-500 transition-colors"
               title="Back to Create Event"
             >
-              S
+              Z
             </a>
             <div class="min-w-0">
               @if (eventData(); as ev) {
@@ -68,7 +68,7 @@ import { HeatmapViewComponent } from '../../components/heatmap-view/heatmap-view
                   {{ ev.start_date }} to {{ ev.end_date }} · {{ days().length }} days
                 </p>
               } @else {
-                <span class="text-sm font-bold text-white">SyncUp Event</span>
+                <span class="text-sm font-bold text-white">Zynci Event</span>
               }
             </div>
           </div>
@@ -784,8 +784,8 @@ export class EventViewComponent implements OnInit, OnDestroy {
     if (typeof navigator !== 'undefined' && navigator.share && ev) {
       try {
         await navigator.share({
-          title: `SyncUp: ${ev.title}`,
-          text: `Add your availability for "${ev.title}" on SyncUp`,
+          title: `Zynci: ${ev.title}`,
+          text: `Add your availability for "${ev.title}" on Zynci`,
           url,
         });
       } catch {

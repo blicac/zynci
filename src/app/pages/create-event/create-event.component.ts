@@ -17,10 +17,10 @@ import { calculateDaysInclusive, encodeShareToken } from '../../utils/scheduler.
         <div class="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div class="flex items-center gap-2.5">
             <div class="h-8 w-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-base shadow-sm">
-              S
+              Z
             </div>
             <div>
-              <span class="font-extrabold text-white tracking-tight text-base">SyncUp</span>
+              <span class="font-extrabold text-white tracking-tight text-base">Zynci</span>
               <span class="hidden sm:inline-block ml-2 rounded-full bg-slate-800 border border-slate-700 px-2.5 py-0.5 text-[11px] font-semibold text-slate-300">
                 Group Availability Scheduler
               </span>
@@ -351,7 +351,7 @@ import { calculateDaysInclusive, encodeShareToken } from '../../utils/scheduler.
       <!-- Footer -->
       <footer class="py-4 text-center text-xs text-slate-400 border-t border-slate-200/60 bg-white">
         <div class="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>SyncUp — Minimalist Group Scheduler</span>
+          <span>Zynci — Minimalist Group Scheduler</span>
           <span>
             Storage Mode:
             <strong class="text-slate-600">
