@@ -20,50 +20,80 @@ import {
   imports: [CommonModule, FormsModule],
   template: `
     <div class="pb-24 select-none bg-white">
-      <!-- Minimalist Top Bar -->
-      <div class="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 py-2 px-3 sm:px-6">
-        <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          <div class="flex items-center gap-2">
-            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-            @if (!editingName()) {
-              <button
-                type="button"
-                (click)="startEditingName()"
-                class="text-xs font-bold text-slate-800 hover:text-emerald-600 underline decoration-slate-300 hover:decoration-emerald-500 transition-colors cursor-pointer flex items-center gap-1"
-                title="Click to update your name"
-              >
-                <span>{{ participantName }}</span>
-                <span class="text-[10px] text-slate-400">✎</span>
-              </button>
-              <span class="text-[11px] text-slate-400">· Tap or drag cells</span>
-            } @else {
-              <form (ngSubmit)="submitNameEdit()" class="flex items-center gap-1">
-                <input
-                  type="text"
-                  name="newName"
-                  [(ngModel)]="draftName"
-                  required
-                  autofocus
-                  class="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs font-bold text-slate-900 focus:border-emerald-500 focus:outline-none w-36"
-                />
-                <button
-                  type="submit"
-                  class="rounded-md bg-emerald-600 text-white px-2 py-0.5 text-[11px] font-bold cursor-pointer"
-                >
-                  Save
-                </button>
+      <!-- Minimalist Responsive Top Bar -->
+      <div class="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 py-2.5 px-3 sm:px-6">
+        <div class="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <!-- Top Row on Mobile: Name + Mode Hint -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-500"></span>
+              @if (!editingName()) {
                 <button
                   type="button"
-                  (click)="editingName.set(false)"
-                  class="rounded-md bg-slate-200 text-slate-600 px-1.5 py-0.5 text-[11px] font-semibold cursor-pointer"
+                  (click)="startEditingName()"
+                  class="truncate text-xs font-bold text-slate-800 hover:text-emerald-600 underline decoration-slate-300 hover:decoration-emerald-500 transition-colors cursor-pointer flex items-center gap-1"
+                  title="Click to update your name"
                 >
-                  ✕
+                  <span class="truncate">{{ participantName }}</span>
+                  <span class="text-[10px] text-slate-400">✎</span>
                 </button>
-              </form>
-            }
+                <span class="text-[11px] text-slate-400 truncate">
+                  · {{ mobileDragPaintMode() ? 'Drag finger to paint' : 'Swipe to scroll, tap to flip' }}
+                </span>
+              } @else {
+                <form (ngSubmit)="submitNameEdit()" class="flex items-center gap-1">
+                  <input
+                    type="text"
+                    name="newName"
+                    [(ngModel)]="draftName"
+                    required
+                    autofocus
+                    class="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs font-bold text-slate-900 focus:border-emerald-500 focus:outline-none w-36"
+                  />
+                  <button
+                    type="submit"
+                    class="rounded-md bg-emerald-600 text-white px-2 py-0.5 text-[11px] font-bold cursor-pointer"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    (click)="editingName.set(false)"
+                    class="rounded-md bg-slate-200 text-slate-600 px-1.5 py-0.5 text-[11px] font-semibold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </form>
+              }
+            </div>
+
+            <!-- Mobile Cancel Button (visible on small screens in row 1) -->
+            <button
+              type="button"
+              (click)="cancelEdit.emit()"
+              class="sm:hidden rounded-lg bg-slate-200/70 hover:bg-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700 cursor-pointer shrink-0"
+            >
+              Cancel
+            </button>
           </div>
 
-          <div class="flex items-center gap-1.5">
+          <!-- Action Controls Row -->
+          <div class="flex flex-wrap items-center gap-1.5">
+            <!-- Touch Drag-Select Toggle (Solves mobile scroll vs drag-paint conflict) -->
+            <button
+              type="button"
+              (click)="toggleMobileDragPaintMode()"
+              [class]="
+                mobileDragPaintMode()
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+              "
+              class="rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+              title="Toggle between scrolling the table and dragging across cells to paint"
+            >
+              <span>{{ mobileDragPaintMode() ? 'Drag-Select: ON' : 'Drag-Select: OFF' }}</span>
+            </button>
+
             <button
               type="button"
               (click)="setAllSlots(true)"
@@ -88,7 +118,7 @@ import {
             <button
               type="button"
               (click)="cancelEdit.emit()"
-              class="rounded-lg bg-slate-200/70 hover:bg-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 cursor-pointer"
+              class="hidden sm:inline-block rounded-lg bg-slate-200/70 hover:bg-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700 cursor-pointer"
             >
               Cancel
             </button>
@@ -100,7 +130,8 @@ import {
       <div class="max-w-5xl mx-auto px-2 sm:px-6 mt-3">
         <div class="rounded-xl bg-white border border-slate-200/90 overflow-hidden">
           <div
-            class="overflow-x-auto overscroll-x-contain"
+            [class]="mobileDragPaintMode() ? 'touch-none' : 'touch-pan-x touch-pan-y'"
+            class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
             (touchmove)="onTouchMove($event)"
           >
             <table class="w-full border-collapse text-center">
@@ -109,7 +140,7 @@ import {
                   <!-- Sticky Slot Header -->
                   <th class="sticky left-0 z-20 bg-slate-50 border-r border-slate-200 px-2 py-1.5 min-w-[34px] w-[34px]"></th>
 
-                  <!-- Inline Overall Rule Columns: All Weekdays (WKD) & All Weekends (WND) -->
+                  <!-- Inline Overall Rule Columns: All Weekdays (M-F) & All Weekends (S-S) -->
                   <th
                     (click)="toggleCategoryDays('weekdays')"
                     class="bg-slate-100/90 hover:bg-slate-200/70 border-r border-slate-200 px-1.5 py-1.5 min-w-[42px] cursor-pointer transition-colors"
@@ -137,11 +168,12 @@ import {
                     <th
                       [attr.data-drag-type]="'day'"
                       [attr.data-date]="day.dateStr"
-                      (mousedown)="onDayHeaderMouseDown(day.dateStr, $event)"
-                      (mouseenter)="onDayHeaderMouseEnter(day.dateStr)"
+                      (pointerdown)="onDayHeaderPointerDown(day.dateStr, $event)"
+                      (pointerenter)="onDayHeaderPointerEnter(day.dateStr, $event)"
                       (touchstart)="onDayHeaderTouchStart(day.dateStr, $event)"
+                      (click)="onDayHeaderClick(day.dateStr)"
                       [class]="day.isWeekend ? 'bg-amber-50/50 hover:bg-amber-100/50' : 'hover:bg-slate-100'"
-                      class="border-r border-slate-100 px-1 py-1.5 min-w-[40px] cursor-pointer transition-colors select-none"
+                      class="border-r border-slate-100 px-1 py-1.5 min-w-[42px] cursor-pointer transition-colors select-none"
                       [title]="day.displayLabel"
                     >
                       <div class="flex flex-col items-center leading-none pointer-events-none">
@@ -219,9 +251,10 @@ import {
                         [attr.data-drag-type]="'cell'"
                         [attr.data-date]="day.dateStr"
                         [attr.data-slot]="slot.key"
-                        (mousedown)="onCellMouseDown(day.dateStr, slot.key, $event)"
-                        (mouseenter)="onCellMouseEnter(day.dateStr, slot.key)"
+                        (pointerdown)="onCellPointerDown(day.dateStr, slot.key, $event)"
+                        (pointerenter)="onCellPointerEnter(day.dateStr, slot.key, $event)"
                         (touchstart)="onCellTouchStart(day.dateStr, slot.key, $event)"
+                        (click)="onCellClick(day.dateStr, slot.key)"
                         [class]="day.isWeekend ? 'bg-amber-50/20' : 'bg-white'"
                         class="p-0.5 border-r border-slate-100 cursor-pointer select-none"
                       >
@@ -289,6 +322,19 @@ export class EditAvailabilityComponent {
   editingName = signal<boolean>(false);
   draftName = '';
 
+  /**
+   * On mobile touch screens, normal swiping scrolls the table smoothly (`mobileDragPaintMode = false`)
+   * and tapping a cell toggles it. Toggling `Drag-Select: ON` lets mobile users drag-paint across cells.
+   */
+  mobileDragPaintMode = signal<boolean>(false);
+
+  // Drag-painting state
+  isDragging = signal<boolean>(false);
+  private dragType: 'cell' | 'day' | null = null;
+  private dragTargetAvailableValue = false;
+  private visitedKeys = new Set<string>();
+  private lastHandledByMousePointer = false;
+
   startEditingName(): void {
     this.draftName = this.participantName;
     this.editingName.set(true);
@@ -301,12 +347,11 @@ export class EditAvailabilityComponent {
     this.renameUser.emit(clean);
   }
 
-  // Apple Photos-style drag painting: starting a press flips the clicked cell and drags that target state
-  isDragging = signal<boolean>(false);
-  private dragType: 'cell' | 'day' | null = null;
-  private dragTargetAvailableValue = false;
-  private visitedKeys = new Set<string>();
+  toggleMobileDragPaintMode(): void {
+    this.mobileDragPaintMode.update((v) => !v);
+  }
 
+  @HostListener('window:pointerup')
   @HostListener('window:mouseup')
   @HostListener('window:touchend')
   @HostListener('window:touchcancel')
@@ -374,40 +419,85 @@ export class EditAvailabilityComponent {
   }
 
   // ============================================================================
-  // Mouse & Touch Drag-Select Handlers (Flip on click & paint while dragging)
+  // Desktop Mouse Drag-Paint & Mobile Tap / Optional Drag-Select Handlers
   // ============================================================================
 
-  onCellMouseDown(dateStr: string, slot: TimeSlot, event: MouseEvent): void {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    this.isDragging.set(true);
-    this.dragType = 'cell';
-    this.visitedKeys.clear();
-    this.dragTargetAvailableValue = !this.isSlotAvailable(dateStr, slot);
-    this.applyCellDrag(dateStr, slot);
+  onCellPointerDown(dateStr: string, slot: TimeSlot, event: PointerEvent): void {
+    if (event.pointerType === 'mouse') {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      this.lastHandledByMousePointer = true;
+      this.isDragging.set(true);
+      this.dragType = 'cell';
+      this.visitedKeys.clear();
+      this.dragTargetAvailableValue = !this.isSlotAvailable(dateStr, slot);
+      this.applyCellDrag(dateStr, slot);
+    } else {
+      this.lastHandledByMousePointer = false;
+    }
   }
 
-  onCellMouseEnter(dateStr: string, slot: TimeSlot): void {
+  onCellPointerEnter(dateStr: string, slot: TimeSlot, event: PointerEvent): void {
+    if (event.pointerType !== 'mouse') return;
     if (!this.isDragging() || this.dragType !== 'cell') return;
     this.applyCellDrag(dateStr, slot);
   }
 
-  onDayHeaderMouseDown(dateStr: string, event: MouseEvent): void {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    this.isDragging.set(true);
-    this.dragType = 'day';
-    this.visitedKeys.clear();
-    this.dragTargetAvailableValue = !this.isAllDayAvailable(dateStr);
-    this.applyDayDrag(dateStr);
+  onCellClick(dateStr: string, slot: TimeSlot): void {
+    if (this.lastHandledByMousePointer) {
+      this.lastHandledByMousePointer = false;
+      return;
+    }
+    if (this.mobileDragPaintMode()) {
+      return;
+    }
+    // Single tap on mobile (when scrolling did not occur) toggles the cell
+    this.availabilityChange.emit({
+      dateStr,
+      slot,
+      value: !this.isSlotAvailable(dateStr, slot),
+    });
   }
 
-  onDayHeaderMouseEnter(dateStr: string): void {
+  onDayHeaderPointerDown(dateStr: string, event: PointerEvent): void {
+    if (event.pointerType === 'mouse') {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      this.lastHandledByMousePointer = true;
+      this.isDragging.set(true);
+      this.dragType = 'day';
+      this.visitedKeys.clear();
+      this.dragTargetAvailableValue = !this.isAllDayAvailable(dateStr);
+      this.applyDayDrag(dateStr);
+    } else {
+      this.lastHandledByMousePointer = false;
+    }
+  }
+
+  onDayHeaderPointerEnter(dateStr: string, event: PointerEvent): void {
+    if (event.pointerType !== 'mouse') return;
     if (!this.isDragging() || this.dragType !== 'day') return;
     this.applyDayDrag(dateStr);
   }
 
+  onDayHeaderClick(dateStr: string): void {
+    if (this.lastHandledByMousePointer) {
+      this.lastHandledByMousePointer = false;
+      return;
+    }
+    if (this.mobileDragPaintMode()) {
+      return;
+    }
+    this.dayToggleChange.emit({
+      dateStr,
+      value: !this.isAllDayAvailable(dateStr),
+    });
+  }
+
   onCellTouchStart(dateStr: string, slot: TimeSlot, _event: TouchEvent): void {
+    // Only intercept touchstart when mobile Drag-Select mode is explicitly ON;
+    // otherwise let the browser scroll the table naturally.
+    if (!this.mobileDragPaintMode()) return;
     this.isDragging.set(true);
     this.dragType = 'cell';
     this.visitedKeys.clear();
@@ -416,6 +506,7 @@ export class EditAvailabilityComponent {
   }
 
   onDayHeaderTouchStart(dateStr: string, _event: TouchEvent): void {
+    if (!this.mobileDragPaintMode()) return;
     this.isDragging.set(true);
     this.dragType = 'day';
     this.visitedKeys.clear();
@@ -424,7 +515,9 @@ export class EditAvailabilityComponent {
   }
 
   onTouchMove(event: TouchEvent): void {
-    if (!this.isDragging() || event.touches.length !== 1) return;
+    if (!this.mobileDragPaintMode() || !this.isDragging() || event.touches.length !== 1) {
+      return;
+    }
     const touch = event.touches[0];
     const targetEl = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null;
     if (!targetEl) return;

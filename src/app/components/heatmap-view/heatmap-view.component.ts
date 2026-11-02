@@ -50,7 +50,7 @@ import {
       <!-- Minimalist Main Card -->
       <div class="max-w-5xl mx-auto px-2 sm:px-6 mt-3">
         <div class="rounded-xl bg-white border border-slate-200/90 p-3 sm:p-4">
-          <div class="flex items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <span class="text-xs sm:text-sm font-bold text-slate-800">Group Availability</span>
               <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
@@ -59,7 +59,7 @@ import {
             </div>
 
             <!-- Right Side: Clickable User Name Badge (if saved globally) + Add/Update CTA -->
-            <div class="flex items-center gap-1.5">
+            <div class="flex flex-wrap items-center gap-1.5">
               @if (currentUserName) {
                 <button
                   type="button"
@@ -78,7 +78,7 @@ import {
                   (click)="editMyAvailability.emit()"
                   class="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-3.5 text-xs transition-all cursor-pointer"
                 >
-                  Update Mine
+                  Update my availability
                 </button>
               } @else if (currentUserName) {
                 <button
@@ -86,7 +86,7 @@ import {
                   (click)="startAddingAvailability.emit(currentUserName)"
                   class="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-3.5 text-xs transition-all cursor-pointer"
                 >
-                  + Add Mine
+                  + Add my availability
                 </button>
               } @else if (!showNamePrompt()) {
                 <button
@@ -94,7 +94,7 @@ import {
                   (click)="openNamePrompt()"
                   class="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-3.5 text-xs transition-all cursor-pointer"
                 >
-                  + Add Mine
+                  + Add my availability
                 </button>
               }
             </div>
@@ -138,7 +138,7 @@ import {
 
           <!-- Minimalist Transposed Matrix -->
           <div class="mt-3 rounded-lg border border-slate-200/80 overflow-hidden">
-            <div class="overflow-x-auto overscroll-x-contain">
+            <div class="overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y [-webkit-overflow-scrolling:touch]">
               <table class="w-full border-collapse text-center">
                 <thead>
                   <tr class="border-b border-slate-200 bg-slate-50/70">

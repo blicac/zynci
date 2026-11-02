@@ -161,3 +161,4 @@ export class HelpModalComponent {
     window.location.href = `mailto:${addr}?subject=${encodeURIComponent('Zynci Feedback / Bug Report')}`;
   }
 }
+

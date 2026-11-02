@@ -47,7 +47,7 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
               class="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-200 transition-colors cursor-pointer"
               title="Help & About"
             >
-              Help
+              ?
             </button>
           </div>
         </div>

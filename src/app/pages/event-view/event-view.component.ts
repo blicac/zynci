@@ -50,32 +50,46 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
   ],
   template: `
     <div class="min-h-screen bg-white flex flex-col">
-      <!-- Top Navigation Bar (Black) -->
+      <!-- Top Navigation Bar (Black, Mobile-Responsive) -->
       <header class="bg-slate-900 text-white border-b border-slate-800">
-        <div class="max-w-5xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2.5 min-w-0">
-            <a
-              routerLink="/"
-              class="h-8 w-8 shrink-0 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-sm shadow-xs hover:bg-emerald-500 transition-colors"
-              title="Back to Create Event"
-            >
-              Z
-            </a>
-            <div class="min-w-0">
-              @if (eventData(); as ev) {
-                <h1 class="truncate text-sm sm:text-base font-extrabold text-white">
-                  {{ ev.title }}
-                </h1>
-                <p class="text-[11px] font-medium text-slate-400">
-                  {{ ev.start_date }} to {{ ev.end_date }} · {{ days().length }} days
-                </p>
-              } @else {
-                <span class="text-sm font-bold text-white">Zynci Event</span>
-              }
+        <div class="max-w-5xl mx-auto px-3 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <!-- Title & Logo Row -->
+          <div class="flex items-center justify-between gap-2 min-w-0">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <a
+                routerLink="/"
+                class="h-8 w-8 shrink-0 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-sm shadow-xs hover:bg-emerald-500 transition-colors"
+                title="Back to Create Event"
+              >
+                Z
+              </a>
+              <div class="min-w-0">
+                @if (eventData(); as ev) {
+                  <h1 class="truncate text-sm sm:text-base font-extrabold text-white">
+                    {{ ev.title }}
+                  </h1>
+                  <p class="text-[11px] font-medium text-slate-400 truncate">
+                    {{ ev.start_date }} to {{ ev.end_date }} · {{ days().length }} days
+                  </p>
+                } @else {
+                  <span class="text-sm font-bold text-white">Zynci Event</span>
+                }
+              </div>
             </div>
+
+            <!-- Mobile-only ? Help button in top right of Row 1 -->
+            <button
+              type="button"
+              (click)="showHelpModal.set(true)"
+              class="sm:hidden shrink-0 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+              title="Help & About"
+            >
+              ?
+            </button>
           </div>
 
-          <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <!-- Action Buttons Row -->
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
             @if (isAdmin() && isUnlocked()) {
               <button
                 type="button"
@@ -119,10 +133,10 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
             <button
               type="button"
               (click)="showHelpModal.set(true)"
-              class="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+              class="hidden sm:inline-block rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition-colors cursor-pointer"
               title="Help & About"
             >
-              Help
+              ?
             </button>
           </div>
         </div>
