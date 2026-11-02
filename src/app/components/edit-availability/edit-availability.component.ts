@@ -79,19 +79,35 @@ import {
 
           <!-- Action Controls Row (Rounded-Full Pill Buttons) -->
           <div class="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              (click)="toggleMobileDragPaintMode()"
-              [class]="
-                mobileDragPaintMode()
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-              "
-              class="rounded-full border px-3 py-1 text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
-              title="Toggle between scrolling the table and dragging across cells to paint"
-            >
-              <span>{{ mobileDragPaintMode() ? 'Drag-Select: ON' : 'Drag-Select: OFF' }}</span>
-            </button>
+            <!-- Mobile Touch Mode Switcher: Scroll+Tap vs Drag-Paint -->
+            <div class="inline-flex items-center rounded-full bg-slate-100 p-0.5 border border-slate-200">
+              <button
+                type="button"
+                (click)="mobileDragPaintMode.set(false)"
+                [class]="
+                  !mobileDragPaintMode()
+                    ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                    : 'text-slate-500 hover:text-slate-800 font-semibold'
+                "
+                class="rounded-full px-2.5 py-1 text-[11px] transition-all cursor-pointer"
+                title="Swipe to scroll table, tap cells to select"
+              >
+                Scroll + Tap
+              </button>
+              <button
+                type="button"
+                (click)="mobileDragPaintMode.set(true)"
+                [class]="
+                  mobileDragPaintMode()
+                    ? 'bg-blue-600 text-white shadow-2xs font-bold'
+                    : 'text-slate-500 hover:text-slate-800 font-semibold'
+                "
+                class="rounded-full px-2.5 py-1 text-[11px] transition-all cursor-pointer"
+                title="Lock scroll and drag finger across cells to paint multiple slots"
+              >
+                Drag-Select
+              </button>
+            </div>
 
             <button
               type="button"
@@ -171,6 +187,7 @@ import {
                         (pointerdown)="onDayHeaderPointerDown(day.dateStr, $event)"
                         (pointerenter)="onDayHeaderPointerEnter(day.dateStr, $event)"
                         (touchstart)="onDayHeaderTouchStart(day.dateStr, $event)"
+                        (touchend)="onDayHeaderTouchEnd(day.dateStr, $event)"
                         (click)="onDayHeaderClick(day.dateStr)"
                         [class]="day.isWeekend ? 'bg-slate-100/70 hover:bg-slate-200/60' : 'hover:bg-slate-100'"
                         class="border-r border-slate-100 px-1.5 py-2 min-w-[44px] cursor-pointer transition-colors select-none"
@@ -254,6 +271,7 @@ import {
                           (pointerdown)="onCellPointerDown(day.dateStr, slot.key, $event)"
                           (pointerenter)="onCellPointerEnter(day.dateStr, slot.key, $event)"
                           (touchstart)="onCellTouchStart(day.dateStr, slot.key, $event)"
+                          (touchend)="onCellTouchEnd(day.dateStr, slot.key, $event)"
                           (click)="onCellClick(day.dateStr, slot.key)"
                           [class]="day.isWeekend ? 'bg-slate-50/60' : 'bg-white'"
                           class="p-0.5 border-r border-slate-100 cursor-pointer select-none"
@@ -330,6 +348,11 @@ export class EditAvailabilityComponent {
   private dragTargetAvailableValue = false;
   private visitedKeys = new Set<string>();
   private lastHandledByMousePointer = false;
+  private lastHandledByTouchTap = false;
+  private touchStartX = 0;
+  private touchStartY = 0;
+  private touchMovedBeyondTap = false;
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
   startEditingName(): void {
     this.draftName = this.participantName;
@@ -347,11 +370,19 @@ export class EditAvailabilityComponent {
     this.mobileDragPaintMode.update((v) => !v);
   }
 
+  private clearLongPressTimer(): void {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
   @HostListener('window:pointerup')
   @HostListener('window:mouseup')
   @HostListener('window:touchend')
   @HostListener('window:touchcancel')
   stopDragging(): void {
+    this.clearLongPressTimer();
     this.isDragging.set(false);
     this.dragType = null;
     this.visitedKeys.clear();
@@ -436,6 +467,10 @@ export class EditAvailabilityComponent {
       this.lastHandledByMousePointer = false;
       return;
     }
+    if (this.lastHandledByTouchTap) {
+      this.lastHandledByTouchTap = false;
+      return;
+    }
     if (this.mobileDragPaintMode()) {
       return;
     }
@@ -472,6 +507,10 @@ export class EditAvailabilityComponent {
       this.lastHandledByMousePointer = false;
       return;
     }
+    if (this.lastHandledByTouchTap) {
+      this.lastHandledByTouchTap = false;
+      return;
+    }
     if (this.mobileDragPaintMode()) {
       return;
     }
@@ -481,29 +520,109 @@ export class EditAvailabilityComponent {
     });
   }
 
-  onCellTouchStart(dateStr: string, slot: TimeSlot, _event: TouchEvent): void {
-    if (!this.mobileDragPaintMode()) return;
-    this.isDragging.set(true);
-    this.dragType = 'cell';
-    this.visitedKeys.clear();
-    this.dragTargetAvailableValue = !this.isSlotAvailable(dateStr, slot);
-    this.applyCellDrag(dateStr, slot);
+  onCellTouchStart(dateStr: string, slot: TimeSlot, event: TouchEvent): void {
+    this.clearLongPressTimer();
+    const touch = event.touches[0];
+    if (touch) {
+      this.touchStartX = touch.clientX;
+      this.touchStartY = touch.clientY;
+    }
+    this.touchMovedBeyondTap = false;
+
+    if (this.mobileDragPaintMode()) {
+      this.isDragging.set(true);
+      this.dragType = 'cell';
+      this.visitedKeys.clear();
+      this.dragTargetAvailableValue = !this.isSlotAvailable(dateStr, slot);
+      this.applyCellDrag(dateStr, slot);
+      return;
+    }
+
+    // In Scroll+Tap mode: holding finger still for 220ms activates drag-paint
+    this.longPressTimer = setTimeout(() => {
+      if (!this.touchMovedBeyondTap) {
+        this.isDragging.set(true);
+        this.dragType = 'cell';
+        this.visitedKeys.clear();
+        this.dragTargetAvailableValue = !this.isSlotAvailable(dateStr, slot);
+        this.applyCellDrag(dateStr, slot);
+      }
+    }, 220);
   }
 
-  onDayHeaderTouchStart(dateStr: string, _event: TouchEvent): void {
-    if (!this.mobileDragPaintMode()) return;
-    this.isDragging.set(true);
-    this.dragType = 'day';
-    this.visitedKeys.clear();
-    this.dragTargetAvailableValue = !this.isAllDayAvailable(dateStr);
-    this.applyDayDrag(dateStr);
+  onCellTouchEnd(dateStr: string, slot: TimeSlot, event: TouchEvent): void {
+    this.clearLongPressTimer();
+    if (this.mobileDragPaintMode() || this.isDragging()) {
+      return;
+    }
+    if (!this.touchMovedBeyondTap) {
+      if (event.cancelable) event.preventDefault();
+      this.lastHandledByTouchTap = true;
+      this.availabilityChange.emit({
+        dateStr,
+        slot,
+        value: !this.isSlotAvailable(dateStr, slot),
+      });
+    }
+  }
+
+  onDayHeaderTouchStart(dateStr: string, event: TouchEvent): void {
+    this.clearLongPressTimer();
+    const touch = event.touches[0];
+    if (touch) {
+      this.touchStartX = touch.clientX;
+      this.touchStartY = touch.clientY;
+    }
+    this.touchMovedBeyondTap = false;
+
+    if (this.mobileDragPaintMode()) {
+      this.isDragging.set(true);
+      this.dragType = 'day';
+      this.visitedKeys.clear();
+      this.dragTargetAvailableValue = !this.isAllDayAvailable(dateStr);
+      this.applyDayDrag(dateStr);
+      return;
+    }
+
+    this.longPressTimer = setTimeout(() => {
+      if (!this.touchMovedBeyondTap) {
+        this.isDragging.set(true);
+        this.dragType = 'day';
+        this.visitedKeys.clear();
+        this.dragTargetAvailableValue = !this.isAllDayAvailable(dateStr);
+        this.applyDayDrag(dateStr);
+      }
+    }, 220);
+  }
+
+  onDayHeaderTouchEnd(dateStr: string, event: TouchEvent): void {
+    this.clearLongPressTimer();
+    if (this.mobileDragPaintMode() || this.isDragging()) {
+      return;
+    }
+    if (!this.touchMovedBeyondTap) {
+      if (event.cancelable) event.preventDefault();
+      this.lastHandledByTouchTap = true;
+      this.dayToggleChange.emit({
+        dateStr,
+        value: !this.isAllDayAvailable(dateStr),
+      });
+    }
   }
 
   onTouchMove(event: TouchEvent): void {
-    if (!this.mobileDragPaintMode() || !this.isDragging() || event.touches.length !== 1) {
+    if (event.touches.length !== 1) return;
+    const touch = event.touches[0];
+
+    if (!this.isDragging()) {
+      const dist = Math.hypot(touch.clientX - this.touchStartX, touch.clientY - this.touchStartY);
+      if (dist > 12) {
+        this.touchMovedBeyondTap = true;
+        this.clearLongPressTimer();
+      }
       return;
     }
-    const touch = event.touches[0];
+
     const targetEl = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null;
     if (!targetEl) return;
 
