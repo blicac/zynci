@@ -2,6 +2,102 @@ import { DayRowInfo, SchedulerEvent } from '../models/scheduler.models';
 
 const PASSWORD_DOMAIN_SALT = 'zynci_schedule_salt_v1:';
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const BASE62_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const SHORT_UUID_PREFIX = '5a796e63-0000-4000-8000-';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function bigIntToBase62(num: bigint, minLength = 1): string {
+  if (num === 0n) return '0'.repeat(minLength);
+  let n = num;
+  let out = '';
+  while (n > 0n) {
+    const rem = Number(n % 62n);
+    out = BASE62_ALPHABET[rem] + out;
+    n = n / 62n;
+  }
+  return out.padStart(minLength, '0');
+}
+
+function base62ToBigInt(str: string): bigint | null {
+  let result = 0n;
+  for (let i = 0; i < str.length; i++) {
+    const idx = BASE62_ALPHABET.indexOf(str[i]);
+    if (idx === -1) return null;
+    result = result * 62n + BigInt(idx);
+  }
+  return result;
+}
+
+/**
+ * Generates a deterministic UUID backed by a random 7-character Base62 TinyURL code
+ * so Supabase stores a valid UUID while share links are just 7 characters (`/p/k9Xm2pQ`).
+ */
+export function generateShortPollUuid(): string {
+  const bytes = new Uint8Array(7);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < 7; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  let code = '';
+  for (let i = 0; i < 7; i++) {
+    // Avoid leading '0' so 7-char codes always stay 7 chars
+    const idx = i === 0 ? 1 + (bytes[i] % 61) : bytes[i] % 62;
+    code += BASE62_ALPHABET[idx];
+  }
+  const num = base62ToBigInt(code) ?? 1n;
+  const hexSuffix = num.toString(16).padStart(12, '0');
+  return `${SHORT_UUID_PREFIX}${hexSuffix}`;
+}
+
+/**
+ * Converts an event UUID into a short TinyURL-style slug (7 chars for new polls, ~22 chars for legacy UUIDs).
+ */
+export function encodeEventIdToShortSlug(eventId: string): string {
+  const clean = eventId.trim().toLowerCase();
+  if (clean.startsWith(SHORT_UUID_PREFIX) && clean.length === 36) {
+    const hexSuffix = clean.slice(SHORT_UUID_PREFIX.length);
+    const num = BigInt(`0x${hexSuffix}`);
+    return bigIntToBase62(num, 7);
+  }
+  if (UUID_REGEX.test(clean)) {
+    const hex = clean.replace(/-/g, '');
+    const num = BigInt(`0x${hex}`);
+    return bigIntToBase62(num, 22);
+  }
+  return eventId;
+}
+
+/**
+ * Resolves a short URL slug (`/p/k9Xm2pQ`) or full UUID back into the underlying database event ID.
+ */
+export function decodeShortSlugToEventId(slugOrId: string): string {
+  const clean = slugOrId.trim();
+  if (UUID_REGEX.test(clean) || clean.includes('-')) {
+    return clean.toLowerCase();
+  }
+  if (clean.length === 7) {
+    const num = base62ToBigInt(clean);
+    if (num !== null) {
+      const hexSuffix = num.toString(16).padStart(12, '0');
+      if (hexSuffix.length <= 12) {
+        return `${SHORT_UUID_PREFIX}${hexSuffix}`;
+      }
+    }
+  }
+  if (clean.length >= 20 && clean.length <= 24) {
+    const num = base62ToBigInt(clean);
+    if (num !== null) {
+      const hex = num.toString(16).padStart(32, '0');
+      if (hex.length === 32) {
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+      }
+    }
+  }
+  return clean;
+}
 
 async function sha256Hex(input: string): Promise<string> {
   const encoder = new TextEncoder();

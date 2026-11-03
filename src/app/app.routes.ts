@@ -8,6 +8,10 @@ export const routes: Routes = [
     component: CreateEventComponent,
   },
   {
+    path: 'p/:id',
+    component: EventViewComponent,
+  },
+  {
     path: 'event/:id',
     component: EventViewComponent,
   },

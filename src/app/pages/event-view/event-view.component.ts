@@ -26,6 +26,8 @@ import {
   calculateDaysInclusive,
   copyTextToClipboard,
   decodeShareToken,
+  decodeShortSlugToEventId,
+  encodeEventIdToShortSlug,
   encodeShareToken,
   formatShortMonthDay,
   generateDateRange,
@@ -108,23 +110,23 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
               >
                 {{ showAdminSettings() ? 'Close Edit' : 'Edit Poll' }}
               </button>
-            }
 
-            <button
-              type="button"
-              (click)="shareOrCopyLink()"
-              [class]="
-                linkCopied()
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-              "
-              class="rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
-              </svg>
-              <span>{{ linkCopied() ? 'Link Copied!' : 'Share Link' }}</span>
-            </button>
+              <button
+                type="button"
+                (click)="shareOrCopyLink()"
+                [class]="
+                  linkCopied()
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                "
+                class="rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+                </svg>
+                <span>{{ linkCopied() ? 'Link Copied!' : 'Share Link' }}</span>
+              </button>
+            }
 
             <a
               routerLink="/"
@@ -346,7 +348,10 @@ import { HelpModalComponent } from '../../components/help-modal/help-modal.compo
             [ownedParticipantName]="ownedParticipantName()"
             [currentUserName]="globalUserName()"
             [nameError]="participantNameError()"
+            [selectedParticipantId]="filteredParticipantId()"
+            (selectParticipantFilter)="filteredParticipantId.set($event)"
             (startAddingAvailability)="onStartParticipantFlow($event)"
+            (claimExistingParticipant)="onClaimParticipantFlow($event)"
             (editMyAvailability)="onEditOwnedParticipant()"
             (renameUser)="onRenameUser($event)"
           />
@@ -422,14 +427,21 @@ export class EventViewComponent implements OnInit, OnDestroy {
   ownedParticipantName = signal<string | null>(null);
   globalUserName = signal<string | null>(null);
   participantNameError = signal<string>('');
+  filteredParticipantId = signal<string | null>(null);
 
   /**
-   * Computes a map of `${dateStr}_${slot}` -> SlotConsensus across all participants.
+   * Computes a map of `${dateStr}_${slot}` -> SlotConsensus across all participants
+   * (or filtered to a single selected participant when `filteredParticipantId` is active).
    */
   consensusMap = computed<Record<string, SlotConsensus>>(() => {
     const map: Record<string, SlotConsensus> = {};
     const dayList = this.days();
-    const partList = this.participants();
+    const allParticipants = this.participants();
+    const selectedId = this.filteredParticipantId();
+    const partList =
+      selectedId && allParticipants.some((p) => p.id === selectedId)
+        ? allParticipants.filter((p) => p.id === selectedId)
+        : allParticipants;
     const avList = this.availabilities();
 
     const avSet = new Set<string>();
@@ -492,7 +504,8 @@ export class EventViewComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     this.route.paramMap.subscribe(async (params) => {
-      this.eventId = params.get('id') ?? '';
+      const rawParam = params.get('id') ?? '';
+      this.eventId = decodeShortSlugToEventId(rawParam);
       await this.loadEvent();
     });
 
@@ -638,6 +651,9 @@ export class EventViewComponent implements OnInit, OnDestroy {
     if (!ev || !this.isAdmin()) return;
 
     await this.supabaseService.deleteParticipant(ev.id, participant.id);
+    if (this.filteredParticipantId() === participant.id) {
+      this.filteredParticipantId.set(null);
+    }
     await this.refreshParticipantsAndAvailabilities();
     this.toastMessage.set(`Removed ${participant.name} from the poll.`);
     setTimeout(() => this.toastMessage.set(''), 3000);
@@ -668,19 +684,25 @@ export class EventViewComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const updated = await this.supabaseService.updateEventSettings(ev.id, {
-      title: this.adminTitle,
-      start_date: this.adminStartDate,
-      end_date: this.adminEndDate,
-      new_raw_password: this.adminNewPassword,
-    });
+    try {
+      const updated = await this.supabaseService.updateEventSettings(ev.id, {
+        title: this.adminTitle,
+        start_date: this.adminStartDate,
+        end_date: this.adminEndDate,
+        new_raw_password: this.adminNewPassword,
+      });
 
-    this.eventData.set(updated);
-    this.days.set(generateDateRange(updated.start_date, updated.end_date));
-    await this.refreshParticipantsAndAvailabilities();
-    this.showAdminSettings.set(false);
-    this.toastMessage.set('Poll settings updated!');
-    setTimeout(() => this.toastMessage.set(''), 3000);
+      this.eventData.set(updated);
+      this.days.set(generateDateRange(updated.start_date, updated.end_date));
+      await this.refreshParticipantsAndAvailabilities();
+      this.showAdminSettings.set(false);
+      this.toastMessage.set('Poll settings updated!');
+      setTimeout(() => this.toastMessage.set(''), 3000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update poll settings.';
+      this.toastMessage.set(msg);
+      setTimeout(() => this.toastMessage.set(''), 3500);
+    }
   }
 
   async onStartParticipantFlow(name: string): Promise<void> {
@@ -730,6 +752,47 @@ export class EventViewComponent implements OnInit, OnDestroy {
     if (!isExisting || currentAvailabilities.length === 0) {
       this.showGlobalRulesModal.set(true);
     }
+  }
+
+  async onClaimParticipantFlow(participantId: string): Promise<void> {
+    const ev = this.eventData();
+    if (!ev) return;
+
+    this.participantNameError.set('');
+    let participant: Participant;
+    try {
+      participant = await this.supabaseService.claimExistingParticipant(
+        ev.id,
+        participantId
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unable to select participant.';
+      this.participantNameError.set(msg);
+      return;
+    }
+
+    this.activeParticipant.set(participant);
+    this.ownedParticipantName.set(participant.name);
+    this.globalUserName.set(participant.name);
+
+    const map: Record<string, boolean> = {};
+    const currentAvailabilities = this.availabilities().filter(
+      (a) => a.participant_id === participant.id
+    );
+
+    const defaultVal = currentAvailabilities.length === 0;
+    for (const day of this.days()) {
+      for (const s of TIME_SLOTS) {
+        map[`${day.dateStr}_${s.key}`] = defaultVal;
+      }
+    }
+
+    for (const record of currentAvailabilities) {
+      map[`${record.date}_${record.time_slot}`] = record.is_available;
+    }
+
+    this.draftAvailability.set(map);
+    this.viewMode.set('edit');
   }
 
   /**
@@ -812,17 +875,20 @@ export class EventViewComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Builds a complete shareable URL that includes the encoded event metadata (`?s=...`)
-   * so opening the link in another browser or incognito window always resolves the event.
+   * Builds a short TinyURL-style shareable link (`/p/k9Xm2pQ`).
    */
   buildShareableUrl(): string {
     const ev = this.eventData();
     const origin = window.location.origin;
     if (!ev) return window.location.href;
+    const shortSlug = encodeEventIdToShortSlug(ev.id);
+    if (this.supabaseService.isUsingSupabase) {
+      return `${origin}/p/${shortSlug}`;
+    }
     const token = encodeShareToken(ev);
     return token
-      ? `${origin}/event/${ev.id}?s=${encodeURIComponent(token)}`
-      : `${origin}/event/${ev.id}`;
+      ? `${origin}/p/${shortSlug}?s=${encodeURIComponent(token)}`
+      : `${origin}/p/${shortSlug}`;
   }
 
   async shareOrCopyLink(): Promise<void> {

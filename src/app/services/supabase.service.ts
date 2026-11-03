@@ -8,6 +8,7 @@ import {
 } from '../models/scheduler.models';
 import {
   calculateDaysInclusive,
+  generateShortPollUuid,
   getTodayIsoDate,
   hashPassword,
   isValidIsoDate,
@@ -27,6 +28,10 @@ const ADMIN_EVENTS_KEY = 'syncup_admin_events_v1';
 const GLOBAL_USER_NAME_KEY = 'syncup_global_user_name_v1';
 const GLOBAL_USER_ID_KEY = 'syncup_global_user_id_v1';
 const MERGED_TO_SERVER_KEY = 'syncup_merged_to_server_v1';
+const CREATED_POLL_TIMESTAMPS_KEY = 'zynci_created_poll_timestamps_v1';
+const MAX_ACTIVE_POLLS_PER_USER = 20;
+const MAX_POLLS_PER_HOUR_PER_USER = 5;
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 export interface OwnedParticipantIdentity {
   participantId: string;
@@ -172,8 +177,16 @@ export class SupabaseService {
       if (mapped) {
         const byId = eventParticipants.find((p) => p.id === mapped.participantId);
         if (byId) {
+          if (mapped.name !== byId.name) {
+            this.saveOwnedParticipant(eventId, {
+              participantId: byId.id,
+              name: byId.name,
+            });
+          }
           return { participantId: byId.id, name: byId.name };
         }
+        // Clean up stale localStorage entry if participant was removed from this poll
+        this.clearOwnedParticipant(eventId);
         return null;
       }
     }
@@ -302,6 +315,83 @@ export class SupabaseService {
   }
 
   /**
+   * Returns all active (non-expired) events where this browser/user is a participant.
+   */
+  async getMyJoinedEvents(): Promise<
+    { event: SchedulerEvent; participantName: string; isCreator: boolean }[]
+  > {
+    await this.purgeExpiredEvents();
+    const todayStr = getTodayIsoDate();
+    const userId = this.getOrCreateUserId();
+    const ownedMap = this.getOwnedParticipantsMap();
+    const adminMap = this.getAdminEventsMap();
+
+    const ownedParticipantIds = Object.values(ownedMap)
+      .map((ident) => ident?.participantId)
+      .filter((id): id is string => !!id);
+
+    const joinedByEventId = new Map<string, string>();
+
+    if (this.supabase) {
+      const [byUserRes, byIdRes] = await Promise.all([
+        this.supabase.from('participants').select('*').eq('user_id', userId),
+        ownedParticipantIds.length > 0
+          ? this.supabase.from('participants').select('*').in('id', ownedParticipantIds)
+          : Promise.resolve({ data: [] as Participant[] }),
+      ]);
+
+      const validParticipants = [
+        ...((byUserRes.data ?? []) as Participant[]),
+        ...((byIdRes.data ?? []) as Participant[]),
+      ];
+
+      for (const p of validParticipants) {
+        if (p.event_id && p.event_id !== LEGACY_DEMO_EVENT_ID) {
+          joinedByEventId.set(p.event_id, p.name);
+        }
+      }
+
+      const eventIds = Array.from(joinedByEventId.keys());
+      if (eventIds.length === 0) return [];
+
+      const { data: eventsData, error } = await this.supabase
+        .from('events')
+        .select('*')
+        .in('id', eventIds)
+        .gte('end_date', todayStr)
+        .order('created_at', { ascending: false });
+
+      if (error) throw new Error(error.message);
+      const events = (eventsData ?? []) as SchedulerEvent[];
+      return events.map((ev) => ({
+        event: ev,
+        participantName: joinedByEventId.get(ev.id) ?? '',
+        isCreator: !!adminMap[ev.id],
+      }));
+    }
+
+    const db = await this.fetchSyncedDb();
+    const ownedIdSet = new Set(ownedParticipantIds);
+    for (const p of db.participants) {
+      if (
+        (p.user_id === userId || ownedIdSet.has(p.id)) &&
+        p.event_id !== LEGACY_DEMO_EVENT_ID
+      ) {
+        joinedByEventId.set(p.event_id, p.name);
+      }
+    }
+
+    return db.events
+      .filter((e) => joinedByEventId.has(e.id) && e.end_date >= todayStr)
+      .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+      .map((ev) => ({
+        event: ev,
+        participantName: joinedByEventId.get(ev.id) ?? '',
+        isCreator: !!adminMap[ev.id],
+      }));
+  }
+
+  /**
    * Updates an event's title, start_date, end_date (adds/removes days), and optionally its shared password.
    * Also cleans up any availability records that fall outside the new date range.
    */
@@ -419,6 +509,30 @@ export class SupabaseService {
   // Database Operations (Supabase REST API + Shared Local Sync Server)
   // ============================================================================
 
+  private getRecentPollCreationTimestamps(): number[] {
+    try {
+      const raw = localStorage.getItem(CREATED_POLL_TIMESTAMPS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) return [];
+      const cutoff = Date.now() - ONE_HOUR_MS;
+      return parsed
+        .map((ts) => Number(ts))
+        .filter((ts) => Number.isFinite(ts) && ts > cutoff);
+    } catch {
+      return [];
+    }
+  }
+
+  private recordPollCreationTimestamp(): void {
+    try {
+      const recent = this.getRecentPollCreationTimestamps();
+      recent.push(Date.now());
+      localStorage.setItem(CREATED_POLL_TIMESTAMPS_KEY, JSON.stringify(recent));
+    } catch {
+      // ignore storage errors
+    }
+  }
+
   async createEvent(params: {
     title: string;
     start_date: string;
@@ -441,12 +555,38 @@ export class SupabaseService {
       throw new Error('Date range must be between 1 and 90 days.');
     }
 
+    // 1. Enforce max 20 active polls per user
+    const myActivePolls = await this.getMyCreatedEvents();
+    if (myActivePolls.length >= MAX_ACTIVE_POLLS_PER_USER) {
+      throw new Error(
+        `You have reached the maximum of ${MAX_ACTIVE_POLLS_PER_USER} active polls. Delete an older poll under "Polls I Created" before creating a new one.`
+      );
+    }
+
+    // 2. Enforce max 5 polls per hour per user (both from active polls' created_at and rolling localStorage log)
+    const oneHourAgoMs = Date.now() - ONE_HOUR_MS;
+    const activeCreatedLastHour = myActivePolls.filter((ev) => {
+      const ts = ev.created_at ? Date.parse(ev.created_at) : 0;
+      return Number.isFinite(ts) && ts > oneHourAgoMs;
+    }).length;
+    const recentTimestampsCount = this.getRecentPollCreationTimestamps().length;
+    if (
+      activeCreatedLastHour >= MAX_POLLS_PER_HOUR_PER_USER ||
+      recentTimestampsCount >= MAX_POLLS_PER_HOUR_PER_USER
+    ) {
+      throw new Error(
+        `Rate limit reached: You can create at most ${MAX_POLLS_PER_HOUR_PER_USER} polls per hour. Please try again later.`
+      );
+    }
+
     const password_hash = await hashPassword(params.raw_password);
+    const shortBackedId = generateShortPollUuid();
 
     if (this.supabase) {
       const { data, error } = await this.supabase
         .from('events')
         .insert({
+          id: shortBackedId,
           title: cleanTitle,
           start_date: params.start_date,
           end_date: params.end_date,
@@ -459,12 +599,13 @@ export class SupabaseService {
       const created = data as SchedulerEvent;
       this.markEventUnlocked(created.id, created.password_hash);
       this.markEventAdmin(created.id);
+      this.recordPollCreationTimestamp();
       return created;
     }
 
     const db = await this.fetchSyncedDb();
     const newEvent: SchedulerEvent = {
-      id: crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+      id: shortBackedId,
       title: cleanTitle,
       start_date: params.start_date,
       end_date: params.end_date,
@@ -475,6 +616,7 @@ export class SupabaseService {
     await this.saveSyncedDb(db);
     this.markEventUnlocked(newEvent.id, newEvent.password_hash);
     this.markEventAdmin(newEvent.id);
+    this.recordPollCreationTimestamp();
     return newEvent;
   }
 
@@ -617,7 +759,7 @@ export class SupabaseService {
       );
       if (nameTakenByOther) {
         throw new Error(
-          `"${nameTakenByOther.name}" is already used in this poll. Please choose a different name or add an initial.`
+          `"${nameTakenByOther.name}" is already in this poll. If that is you, tap "${nameTakenByOther.name}" above ("That's me"), otherwise choose a different name.`
         );
       }
 
@@ -665,7 +807,7 @@ export class SupabaseService {
     );
     if (nameTakenByOther) {
       throw new Error(
-        `"${nameTakenByOther.name}" is already used in this poll. Please choose a different name or add an initial.`
+        `"${nameTakenByOther.name}" is already in this poll. If that is you, tap "${nameTakenByOther.name}" above ("That's me"), otherwise choose a different name.`
       );
     }
 
@@ -683,6 +825,47 @@ export class SupabaseService {
       name: created.name,
     });
     return { participant: created, isExisting: false };
+  }
+
+  /**
+   * Links an existing participant in a poll ("That's me") to the current device/browser
+   * so the user can view and edit their availability across multiple machines.
+   */
+  async claimExistingParticipant(
+    eventId: string,
+    participantId: string
+  ): Promise<Participant> {
+    if (this.supabase) {
+      const { data, error } = await this.supabase
+        .from('participants')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('id', participantId)
+        .single();
+
+      if (error || !data) {
+        throw new Error('Could not find that participant in this poll.');
+      }
+      const participant = data as Participant;
+      this.saveOwnedParticipant(eventId, {
+        participantId: participant.id,
+        name: participant.name,
+      });
+      return participant;
+    }
+
+    const db = await this.fetchSyncedDb();
+    const participant = db.participants.find(
+      (p) => p.event_id === eventId && p.id === participantId
+    );
+    if (!participant) {
+      throw new Error('Could not find that participant in this poll.');
+    }
+    this.saveOwnedParticipant(eventId, {
+      participantId: participant.id,
+      name: participant.name,
+    });
+    return participant;
   }
 
   /**

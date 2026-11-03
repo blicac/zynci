@@ -57,16 +57,21 @@ import { copyTextToClipboard } from '../../utils/scheduler.utils';
             </ul>
           </div>
 
-          <!-- Creator & Disclaimer -->
+          <!-- Creator, Privacy & Disclaimer -->
           <div class="pt-3 border-t border-slate-100 space-y-2">
             <h3 class="text-[11px] font-bold uppercase tracking-wider text-slate-900">
-              About & Disclaimer
+              About, Privacy & Disclaimer
             </h3>
             <p>
               Created by <strong class="text-slate-900">Bruna Freitas</strong> for personal purposes.
             </p>
-            <p class="rounded-xl bg-slate-50 border border-slate-200/80 p-3 text-slate-600">
-              This app is provided as-is for personal use. I do not hold any promises or guarantees regarding bugs, uptime, or data availability.
+            <p class="rounded-xl bg-slate-50 border border-slate-200/80 p-3 text-slate-600 space-y-1.5">
+              <span class="block">
+                <strong class="text-slate-800">Privacy:</strong> Zynci uses no tracking cookies, ads, or third-party analytics. Only the display name and availability you enter are stored in the poll database (and in your browser's local storage so you can manage your polls), and polls are automatically deleted once their end date passes.
+              </span>
+              <span class="block">
+                <strong class="text-slate-800">Disclaimer:</strong> This app is provided as-is for personal use. I do not hold any promises or guarantees regarding bugs, uptime, or data availability.
+              </span>
             </p>
           </div>
 

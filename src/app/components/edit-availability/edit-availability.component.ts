@@ -37,8 +37,11 @@ import {
                   <span class="truncate">{{ participantName }}</span>
                   <span class="text-[10px] text-slate-400">✎</span>
                 </button>
-                <span class="text-[11px] text-slate-400 truncate">
+                <span class="sm:hidden text-[11px] text-slate-400 truncate">
                   · {{ mobileDragPaintMode() ? 'Drag finger to paint' : 'Swipe to scroll, tap to flip' }}
+                </span>
+                <span class="hidden sm:inline text-[11px] text-slate-400 truncate">
+                  · Click or drag across cells to select
                 </span>
               } @else {
                 <form (ngSubmit)="submitNameEdit()" class="flex items-center gap-1.5">
@@ -79,8 +82,8 @@ import {
 
           <!-- Action Controls Row (Rounded-Full Pill Buttons) -->
           <div class="flex flex-wrap items-center gap-1.5">
-            <!-- Mobile Touch Mode Switcher: Scroll+Tap vs Drag-Paint -->
-            <div class="inline-flex items-center rounded-full bg-slate-100 p-0.5 border border-slate-200">
+            <!-- Mobile-Only Touch Mode Switcher: Scroll+Tap vs Drag-Paint -->
+            <div class="sm:hidden inline-flex items-center rounded-full bg-slate-100 p-0.5 border border-slate-200">
               <button
                 type="button"
                 (click)="mobileDragPaintMode.set(false)"
@@ -147,7 +150,7 @@ import {
           <div class="rounded-xl border border-slate-200/80 overflow-hidden">
             <div
               [class]="mobileDragPaintMode() ? 'touch-none' : 'touch-pan-x touch-pan-y'"
-              class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+              class="overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch]"
               (touchmove)="onTouchMove($event)"
             >
               <table class="w-full border-collapse text-center">
@@ -212,13 +215,18 @@ import {
                 <tbody class="divide-y divide-slate-100">
                   @for (slot of timeSlots; track slot.key) {
                     <tr>
-                      <!-- Sticky M / A / E Row Header (Polished Metadata Label) -->
+                      <!-- Sticky M / A / E Row Header with Rich Hover Tooltip -->
                       <td
                         (click)="toggleEntireSlotRow(slot.key)"
-                        class="sticky left-0 z-20 bg-slate-50 hover:bg-slate-100 border-r border-slate-200/80 px-2 py-1.5 text-center cursor-pointer font-bold text-[11px] uppercase tracking-wider text-slate-600"
-                        [title]="'Toggle all ' + slot.fullLabel"
+                        class="group relative sticky left-0 z-20 bg-slate-50 hover:bg-slate-100 border-r border-slate-200/80 px-2 py-1.5 text-center cursor-pointer font-bold text-[11px] uppercase tracking-wider text-slate-600 select-none"
+                        [title]="slot.fullLabel + ' (' + slot.timeHint + ') · Click to toggle all ' + slot.fullLabel + 's'"
                       >
-                        {{ slot.shortLabel }}
+                        <span>{{ slot.shortLabel }}</span>
+                        <div
+                          class="pointer-events-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 absolute left-full top-1/2 -translate-y-1/2 ml-2 z-40 whitespace-nowrap rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white tracking-normal normal-case leading-none shadow-md"
+                        >
+                          {{ slot.fullLabel }} · {{ slot.timeHint }}
+                        </div>
                       </td>
 
                       <!-- Overall Rule Cell: All Weekdays (Mon–Fri) for this slot -->

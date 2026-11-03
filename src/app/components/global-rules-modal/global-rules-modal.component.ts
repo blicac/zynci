@@ -91,12 +91,16 @@ interface IndividualDayColumn {
                 <button
                   type="button"
                   (click)="toggleSlotAcrossAllDays(slot.key)"
+                  [title]="slot.fullLabel + ' (' + slot.timeHint + ') · Click to toggle all days'"
                   class="flex items-center gap-1.5 text-left py-1 px-1 rounded-md hover:bg-slate-50 cursor-pointer"
                 >
                   <span class="inline-flex h-6 w-6 items-center justify-center rounded-sm bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold uppercase tracking-wider">
                     {{ slot.shortLabel }}
                   </span>
-                  <span class="text-xs font-bold text-slate-600">{{ slot.fullLabel }}</span>
+                  <div class="flex flex-col leading-tight">
+                    <span class="text-xs font-bold text-slate-700">{{ slot.fullLabel }}</span>
+                    <span class="text-[10px] font-medium text-slate-400">{{ slot.timeHint }}</span>
+                  </div>
                 </button>
 
                 <!-- Mon-Fri Cell -->
@@ -161,7 +165,7 @@ interface IndividualDayColumn {
                   type="button"
                   (click)="toggleSlotAcrossAllDays(slot.key)"
                   class="flex items-center justify-center h-9 rounded-sm bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold uppercase tracking-wider cursor-pointer"
-                  [title]="slot.fullLabel"
+                  [title]="slot.fullLabel + ' (' + slot.timeHint + ') · Click to toggle all days'"
                 >
                   {{ slot.shortLabel }}
                 </button>
